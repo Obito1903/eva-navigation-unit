@@ -1,15 +1,19 @@
 // a310 – Android Auto head unit UI
-// Touch-first, car-infotainment layout:
+// NERV / "Central Dogma" aesthetic: red-on-black technical HUD.
 //   • Left sidebar  : wide nav buttons (≥ 72px) close to the driver
-//   • Content area  : fills the rest — AA video or settings placeholder
-
-import { VerticalBox } from "std-widgets.slint";
+//   • Content area  : fills the rest — AA video or a locked-terminal panel
 
 export component AppWindow inherits Window {
     title: "a310";
     preferred-width: 1280px;
     preferred-height: 720px;
-    background: #0d0d1a;
+    background: #000000;
+
+    // ── Palette ──────────────────────────────────────────────────────────
+    in property <color> nerv-red: #e6231b;
+    in property <color> nerv-red-dim: #6b1410;
+    in property <color> nerv-bg: #000000;
+    in property <color> nerv-panel: #0a0204;
 
     // Updated by Rust each decoded video frame
     in-out property <image> video-frame;
@@ -29,19 +33,42 @@ export component AppWindow inherits Window {
     HorizontalLayout {
         // ── Left sidebar ────────────────────────────────────────────────
         Rectangle {
-            width: 90px;
-            background: #1a1a2e;
+            width: 96px;
+            background: root.nerv-panel;
+
+            // thin red rail on the inner edge
+            Rectangle {
+                x: parent.width - 1px;
+                width: 1px;
+                background: root.nerv-red-dim;
+            }
 
             VerticalLayout {
                 alignment: start;
-                padding: 8px;
-                spacing: 6px;
+                padding: 10px;
+                spacing: 10px;
+
+                // NERV-style header glyph
+                Rectangle {
+                    height: 40px;
+                    Text {
+                        text: "NERV";
+                        color: root.nerv-red;
+                        font-size: 16px;
+                        font-weight: 800;
+                        letter-spacing: 2px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
 
                 // Android Auto button
                 sidebar-btn := Rectangle {
-                    height: 72px;
-                    border-radius: 10px;
-                    background: active-view == 0 ? #3a7bd5 : #2a2a40;
+                    height: 76px;
+                    border-radius: 2px;
+                    border-width: 1px;
+                    border-color: root.active-view == 0 ? root.nerv-red : root.nerv-red-dim;
+                    background: root.active-view == 0 ? root.nerv-red-dim.with-alpha(0.45) : #120305;
 
                     ta0 := TouchArea {
                         clicked => { root.nav-to(0); root.active-view = 0; }
@@ -52,14 +79,17 @@ export component AppWindow inherits Window {
                         spacing: 4px;
 
                         Text {
-                            text: "🚗";
+                            text: "▶";
+                            color: root.active-view == 0 ? root.nerv-red : #7a2620;
                             font-size: 22px;
                             horizontal-alignment: center;
                         }
                         Text {
-                            text: "AA";
-                            color: white;
+                            text: "AUTO";
+                            color: root.active-view == 0 ? root.nerv-red : #7a2620;
                             font-size: 11px;
+                            font-weight: 700;
+                            letter-spacing: 1px;
                             horizontal-alignment: center;
                         }
                     }
@@ -67,9 +97,11 @@ export component AppWindow inherits Window {
 
                 // Settings button
                 Rectangle {
-                    height: 72px;
-                    border-radius: 10px;
-                    background: active-view == 1 ? #3a7bd5 : #2a2a40;
+                    height: 76px;
+                    border-radius: 2px;
+                    border-width: 1px;
+                    border-color: root.active-view == 1 ? root.nerv-red : root.nerv-red-dim;
+                    background: root.active-view == 1 ? root.nerv-red-dim.with-alpha(0.45) : #120305;
 
                     ta1 := TouchArea {
                         clicked => { root.nav-to(1); root.active-view = 1; }
@@ -81,15 +113,30 @@ export component AppWindow inherits Window {
 
                         Text {
                             text: "⚙";
+                            color: root.active-view == 1 ? root.nerv-red : #7a2620;
                             font-size: 22px;
                             horizontal-alignment: center;
                         }
                         Text {
-                            text: "Settings";
-                            color: white;
+                            text: "SYS";
+                            color: root.active-view == 1 ? root.nerv-red : #7a2620;
                             font-size: 11px;
+                            font-weight: 700;
+                            letter-spacing: 1px;
                             horizontal-alignment: center;
                         }
+                    }
+                }
+
+                // vertical katakana accent: ネルフ ・ 中央教義
+                Rectangle {
+                    vertical-stretch: 1;
+                    Text {
+                        text: "ネ\nル\nフ\n・\n中\n央\n教\n義";
+                        color: root.nerv-red-dim;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
                     }
                 }
             }
@@ -98,12 +145,17 @@ export component AppWindow inherits Window {
         // ── Content area ─────────────────────────────────────────────────
         Rectangle {
             horizontal-stretch: 1;
-            background: #0d0d1a;
+            background: root.nerv-bg;
+            clip: true;
 
             // ── View 0 : Android Auto video ──────────────────────────────
-            if active-view == 0: Rectangle {
+            // Both views stay mounted and crossfade / slide on switch.
+            view0 := Rectangle {
                 width: 100%;
                 height: 100%;
+                opacity: root.active-view == 0 ? 1.0 : 0.0;
+                x: root.active-view == 0 ? 0px : -32px;
+                animate opacity, x { duration: 250ms; easing: ease-in-out; }
 
                 // Video frame display
                 Image {
@@ -111,20 +163,87 @@ export component AppWindow inherits Window {
                     height: 100%;
                     source: root.video-frame;
                     image-fit: fill;
+                    // Fade the stream in once Android Auto connects.
+                    opacity: root.aa-connected ? 1.0 : 0.0;
+                    animate opacity { duration: 400ms; easing: ease-in-out; }
                 }
 
-                // "Waiting" overlay shown when not yet connected / no frame
-                if !root.aa-connected: Rectangle {
+                // "Locked terminal" overlay shown when not yet connected
+                Rectangle {
                     width: 100%;
                     height: 100%;
-                    background: #0d0d1a;
+                    background: root.nerv-bg;
+                    // Crossfade out as the video fades in.
+                    opacity: root.aa-connected ? 0.0 : 1.0;
+                    visible: self.opacity > 0.0;
+                    animate opacity { duration: 400ms; easing: ease-in-out; }
 
-                    Text {
-                        text: "Waiting for Android Auto…";
-                        color: #888888;
-                        font-size: 20px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
+                    // outer HUD frame
+                    Rectangle {
+                        x: 48px;
+                        y: 36px;
+                        width: parent.width - 96px;
+                        height: parent.height - 72px;
+                        background: transparent;
+                        border-width: 1px;
+                        border-color: root.nerv-red-dim;
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 14px;
+                            padding: 32px;
+
+                            Text {
+                                text: "SECURITY · PERSONAL CODE";
+                                color: root.nerv-red-dim;
+                                font-size: 13px;
+                                letter-spacing: 3px;
+                                horizontal-alignment: center;
+                            }
+                            Text {
+                                text: "CENTRAL DOGMA";
+                                color: root.nerv-red;
+                                font-size: 52px;
+                                font-weight: 800;
+                                letter-spacing: 6px;
+                                horizontal-alignment: center;
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 10px;
+
+                                Text {
+                                    text: "FINAL GATE";
+                                    color: root.nerv-red-dim;
+                                    font-size: 13px;
+                                    letter-spacing: 2px;
+                                    vertical-alignment: center;
+                                }
+                                Rectangle {
+                                    width: 88px;
+                                    height: 22px;
+                                    background: root.nerv-red;
+                                    Text {
+                                        text: "LOCKED";
+                                        color: #000000;
+                                        font-size: 12px;
+                                        font-weight: 800;
+                                        letter-spacing: 2px;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: "WAITING FOR ANDROID AUTO · INSERT CARD FULLY";
+                                color: root.nerv-red-dim;
+                                font-size: 12px;
+                                letter-spacing: 2px;
+                                horizontal-alignment: center;
+                            }
+                        }
                     }
                 }
 
@@ -132,6 +251,8 @@ export component AppWindow inherits Window {
                 video-touch := TouchArea {
                     width: 100%;
                     height: 100%;
+                    // Don't capture touches while this view is hidden.
+                    enabled: root.active-view == 0;
 
                     // Map logical TouchArea coords → video source pixel coords.
                     // mouse-x/mouse-y are the current pointer position within this TouchArea.
@@ -147,27 +268,43 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // ── View 1 : Settings placeholder ────────────────────────────
-            if active-view == 1: Rectangle {
+            // ── View 1 : Settings / system panel ─────────────────────────
+            view1 := Rectangle {
                 width: 100%;
                 height: 100%;
-                background: #0d0d1a;
+                background: root.nerv-bg;
+                opacity: root.active-view == 1 ? 1.0 : 0.0;
+                x: root.active-view == 1 ? 0px : 32px;
+                animate opacity, x { duration: 250ms; easing: ease-in-out; }
 
-                VerticalLayout {
-                    alignment: center;
-                    spacing: 16px;
+                Rectangle {
+                    x: 48px;
+                    y: 36px;
+                    width: parent.width - 96px;
+                    height: parent.height - 72px;
+                    background: transparent;
+                    border-width: 1px;
+                    border-color: root.nerv-red-dim;
 
-                    Text {
-                        text: "Settings";
-                        color: white;
-                        font-size: 28px;
-                        horizontal-alignment: center;
-                    }
-                    Text {
-                        text: "Coming soon…";
-                        color: #888888;
-                        font-size: 16px;
-                        horizontal-alignment: center;
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 14px;
+
+                        Text {
+                            text: "SYSTEM CONFIG";
+                            color: root.nerv-red;
+                            font-size: 32px;
+                            font-weight: 800;
+                            letter-spacing: 4px;
+                            horizontal-alignment: center;
+                        }
+                        Text {
+                            text: "MAGI · STANDBY";
+                            color: root.nerv-red-dim;
+                            font-size: 14px;
+                            letter-spacing: 3px;
+                            horizontal-alignment: center;
+                        }
                     }
                 }
             }

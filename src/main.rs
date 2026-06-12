@@ -815,6 +815,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         log::info!("Android Auto disconnected");
                         win.set_aa_connected(false);
                         let _ = video_tx.send(VideoCommand::Flush);
+                        // Clear the last decoded frame so a stale image does not
+                        // flicker back on screen when the phone reconnects.
+                        win.set_video_frame(slint::Image::default());
                     }
                     MessageFromAsync::VideoData { data, .. } => {
                         // Hand the raw H.264 off to the decoder thread; do not

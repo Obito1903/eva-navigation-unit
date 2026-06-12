@@ -1,4 +1,5 @@
 import { Theme } from "../theme.slint";
+import { GlowText } from "glow_text.slint";
 
 // A single sidebar navigation button (icon + label) with active highlight.
 export component NavButton inherits Rectangle {
@@ -23,18 +24,18 @@ export component NavButton inherits Rectangle {
         alignment: center;
         spacing: 4px;
 
-        Text {
+        GlowText {
             text: root.icon;
-            color: root.active ? Theme.red : Theme.red-mute;
+            text-color: root.active ? Theme.text : Theme.text-mute;
             font-size: 22px;
             horizontal-alignment: center;
         }
-        Text {
+        GlowText {
             text: root.label;
-            color: root.active ? Theme.red : Theme.red-mute;
+            text-color: root.active ? Theme.text : Theme.text-mute;
             font-size: 11px;
             font-weight: 700;
-            letter-spacing: 1px;
+            letter-spacing: 1;
             horizontal-alignment: center;
         }
     }

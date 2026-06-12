@@ -1,5 +1,6 @@
 import { Theme } from "../theme.slint";
 import { HudPanel } from "../components/hud_panel.slint";
+import { GlowText } from "../components/glow_text.slint";
 import { SettingsAndroidAutoTab } from "settings_android_auto.slint";
 
 // System / settings view with category tabs.
@@ -41,7 +42,7 @@ export component SettingsView inherits Rectangle {
 
                         tab-aa-text := Text {
                             text: "ANDROID AUTO";
-                            color: root.active-tab == 0 ? Theme.red : Theme.red-mute;
+                            color: root.active-tab == 0 ? Theme.text : Theme.text-mute;
                             font-size: 12px;
                             font-weight: 700;
                             letter-spacing: 2px;

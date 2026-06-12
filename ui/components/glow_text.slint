@@ -1,0 +1,87 @@
+import { Theme } from "../theme.slint";
+
+// Layered-text bloom: renders 4 offset copies at low opacity behind the main
+// text to simulate a soft glow / bloom halo. Works without blur support.
+export component GlowText inherits Rectangle {
+    in property <string> text;
+    in property <length> font-size: 14px;
+    in property <int> font-weight: 400;
+    in property <color> text-color: Theme.text;
+    in property <float> letter-spacing: 0;
+    in property <TextHorizontalAlignment> horizontal-alignment: left;
+    in property <TextVerticalAlignment> vertical-alignment: center;
+
+    // Glow intensity (opacity of bloom layers)
+    in property <float> glow-opacity: 0.3;
+    // Spread distance of the bloom
+    in property <length> glow-spread: 0.5px;
+
+    background: transparent;
+
+    // ── Bloom layers (offset copies) ──────────────────────────────────
+    Text {
+        width: 100%;
+        height: 100%;
+        x: -root.glow-spread;
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        color: root.text-color;
+        letter-spacing: root.letter-spacing * 1px;
+        horizontal-alignment: root.horizontal-alignment;
+        vertical-alignment: root.vertical-alignment;
+        opacity: root.glow-opacity;
+    }
+    Text {
+        width: 100%;
+        height: 100%;
+        x: root.glow-spread;
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        color: root.text-color;
+        letter-spacing: root.letter-spacing * 1px;
+        horizontal-alignment: root.horizontal-alignment;
+        vertical-alignment: root.vertical-alignment;
+        opacity: root.glow-opacity;
+    }
+    Text {
+        width: 100%;
+        height: 100%;
+        y: -root.glow-spread;
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        color: root.text-color;
+        letter-spacing: root.letter-spacing * 1px;
+        horizontal-alignment: root.horizontal-alignment;
+        vertical-alignment: root.vertical-alignment;
+        opacity: root.glow-opacity;
+    }
+    Text {
+        width: 100%;
+        height: 100%;
+        y: root.glow-spread;
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        color: root.text-color;
+        letter-spacing: root.letter-spacing * 1px;
+        horizontal-alignment: root.horizontal-alignment;
+        vertical-alignment: root.vertical-alignment;
+        opacity: root.glow-opacity;
+    }
+
+    // ── Main text layer ───────────────────────────────────────────────
+    Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        color: root.text-color;
+        letter-spacing: root.letter-spacing * 1px;
+        horizontal-alignment: root.horizontal-alignment;
+        vertical-alignment: root.vertical-alignment;
+    }
+}

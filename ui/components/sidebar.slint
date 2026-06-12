@@ -1,5 +1,6 @@
 import { Theme } from "../theme.slint";
 import { NavButton } from "nav_button.slint";
+import { GlowText } from "glow_text.slint";
 
 // One navigation entry. Add views by appending items in the parent.
 export struct NavItem {
@@ -31,12 +32,12 @@ export component Sidebar inherits Rectangle {
         // NERV-style header glyph
         Rectangle {
             height: 40px;
-            Text {
+            GlowText {
                 text: "NERV";
-                color: Theme.red;
+                text-color: Theme.text;
                 font-size: 16px;
                 font-weight: 800;
-                letter-spacing: 2px;
+                letter-spacing: 2;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
@@ -54,9 +55,9 @@ export component Sidebar inherits Rectangle {
         // vertical katakana accent: ネルフ ・ 中央教義
         Rectangle {
             vertical-stretch: 1;
-            Text {
+            GlowText {
                 text: "ネ\nル\nフ\n・\n中\n央\n教\n義";
-                color: Theme.red-dim;
+                text-color: Theme.text-dim;
                 font-size: 12px;
                 horizontal-alignment: center;
                 vertical-alignment: center;

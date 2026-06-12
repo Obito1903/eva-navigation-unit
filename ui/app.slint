@@ -27,6 +27,10 @@ export component AppWindow inherits Window {
     // Connected state (controls the AA overlay)
     in-out property <bool> aa-connected: false;
 
+    // Android Auto DPI setting
+    in-out property <int> aa-dpi: 160;
+    callback aa-dpi-changed(int);
+
     // Fired by the video TouchArea: x, y in video-source pixels, action (0=down 1=move 2=up)
     callback touch-event(float, float, int);
 
@@ -77,6 +81,10 @@ export component AppWindow inherits Window {
                 SettingsView {
                     width: 100%;
                     height: 100%;
+                    aa-dpi <=> root.aa-dpi;
+                    aa-dpi-changed(v) => {
+                        root.aa-dpi-changed(v);
+                    }
                 }
             }
         }

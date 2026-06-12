@@ -809,15 +809,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     MessageFromAsync::Connected => {
                         log::info!("Android Auto connected");
+                        // Clear any stale frame so the stream fades in from
+                        // black rather than briefly showing the previous
+                        // session's last frame.
+                        win.set_video_frame(slint::Image::default());
                         win.set_aa_connected(true);
                     }
                     MessageFromAsync::Disconnected => {
                         log::info!("Android Auto disconnected");
                         win.set_aa_connected(false);
                         let _ = video_tx.send(VideoCommand::Flush);
-                        // Clear the last decoded frame so a stale image does not
-                        // flicker back on screen when the phone reconnects.
-                        win.set_video_frame(slint::Image::default());
+                        // Keep the last frame mounted so the locked overlay can
+                        // crossfade over it; it is cleared on the next connect.
                     }
                     MessageFromAsync::VideoData { data, .. } => {
                         // Hand the raw H.264 off to the decoder thread; do not

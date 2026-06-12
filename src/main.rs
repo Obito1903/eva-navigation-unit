@@ -39,6 +39,15 @@ enum MessageToAsync {
     AndroidAutoMessage(android_auto::SendableAndroidAutoMessage),
 }
 
+// ─── Commands to the video decoder thread ─────────────────────────────────────
+
+enum VideoCommand {
+    /// Raw H.264 NAL bytes to decode and display.
+    Frame(Vec<u8>),
+    /// Flush the decoder (e.g. on disconnect).
+    Flush,
+}
+
 // ─── Audio producer type alias ────────────────────────────────────────────────
 
 type AudioProducer = ringbuf::HeapProd<i16>;
@@ -729,7 +738,58 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // ── Poll async → UI messages with a 16 ms timer ───────────────────────────
     let window_weak2 = window_weak.clone();
-    let mut decoder = openh264::decoder::Decoder::new().unwrap();
+
+    // Video frames are decoded on a dedicated thread so the heavy H.264 decode
+    // and YUV→RGB conversion never block the Slint event loop. The decoder
+    // thread posts the finished image back to the UI thread, which only has to
+    // store it (cheap).
+    let (video_tx, video_rx) = std::sync::mpsc::channel::<VideoCommand>();
+    {
+        let window_weak_dec = window_weak.clone();
+        std::thread::spawn(move || {
+            let mut decoder = openh264::decoder::Decoder::new().unwrap();
+            while let Ok(cmd) = video_rx.recv() {
+                match cmd {
+                    VideoCommand::Flush => {
+                        let _ = decoder.flush_remaining();
+                    }
+                    VideoCommand::Frame(data) => {
+                        let mut units = openh264::nal_units(&data).peekable();
+                        while let Some(nal) = units.next() {
+                            match decoder.decode(nal) {
+                                Ok(Some(yuv)) => {
+                                    use openh264::formats::YUVSource;
+                                    let (w, h) = yuv.dimensions_uv();
+                                    let (w, h) = (w * 2, h * 2);
+                                    let mut rgb = vec![0u8; yuv.rgb8_len()];
+                                    yuv.write_rgb8(&mut rgb);
+                                    // `slint::Image` is not `Send`, so hand the
+                                    // raw RGB bytes to the UI thread and wrap
+                                    // them there (a cheap copy).
+                                    let weak = window_weak_dec.clone();
+                                    let _ = slint::invoke_from_event_loop(move || {
+                                        if let Some(win) = weak.upgrade() {
+                                            let mut buf =
+                                                slint::SharedPixelBuffer::<slint::Rgb8Pixel>::new(
+                                                    w as u32,
+                                                    h as u32,
+                                                );
+                                            buf.make_mut_bytes().copy_from_slice(&rgb);
+                                            win.set_video_frame(slint::Image::from_rgb8(buf));
+                                        }
+                                    });
+                                }
+                                Ok(None) => {}
+                                Err(e) => {
+                                    log::error!("Video decode error: {e:?}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     let timer = slint::Timer::default();
     timer.start(
@@ -754,36 +814,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     MessageFromAsync::Disconnected => {
                         log::info!("Android Auto disconnected");
                         win.set_aa_connected(false);
-                        let _ = decoder.flush_remaining();
+                        let _ = video_tx.send(VideoCommand::Flush);
                     }
                     MessageFromAsync::VideoData { data, .. } => {
-                        // Decode H.264 NAL units → RGB → SharedPixelBuffer
-                        let mut units = openh264::nal_units(&data).peekable();
-                        while let Some(nal) = units.next() {
-                            match decoder.decode(nal) {
-                                Ok(Some(yuv)) => {
-                                    use openh264::formats::YUVSource;
-                                    let (w, h) = yuv.dimensions_uv();
-                                    let (w, h) = (w * 2, h * 2);
-                                    let mut buf =
-                                        slint::SharedPixelBuffer::<slint::Rgb8Pixel>::new(
-                                            w as u32,
-                                            h as u32,
-                                        );
-                                    let rgb_len = yuv.rgb8_len();
-                                    let mut rgb_raw = vec![0u8; rgb_len];
-                                    yuv.write_rgb8(&mut rgb_raw);
-                                    let pixels = buf.make_mut_bytes();
-                                    pixels.copy_from_slice(&rgb_raw);
-                                    let image = slint::Image::from_rgb8(buf);
-                                    win.set_video_frame(image);
-                                }
-                                Ok(None) => {}
-                                Err(e) => {
-                                    log::error!("Video decode error: {e:?}");
-                                }
-                            }
-                        }
+                        // Hand the raw H.264 off to the decoder thread; do not
+                        // decode on the UI thread or the event loop will stall.
+                        let _ = video_tx.send(VideoCommand::Frame(data));
                     }
                 }
             }

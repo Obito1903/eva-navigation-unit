@@ -1,5 +1,6 @@
 import { Theme } from "../theme.slint";
 import { Dropdown } from "../components/dropdown.slint";
+import { CapsuleBarSlider } from "../components/capsule_bar_slider.slint";
 
 // UI category settings tab.
 export component SettingsUiTab inherits Rectangle {
@@ -12,6 +13,16 @@ export component SettingsUiTab inherits Rectangle {
     // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> aa-video-transition-mode: 1;
     callback aa-video-transition-changed(int);
+
+    // Transition speed multipliers (1.0 = default; higher = faster).
+    in-out property <float> transition-speed: 1.0;
+    callback transition-speed-changed(float);
+    in-out property <float> aa-video-transition-speed: 1.0;
+    callback aa-video-transition-speed-changed(float);
+
+    // Selectable speed range (multiplier).
+    property <float> min-speed: 0.25;
+    property <float> max-speed: 3.0;
 
     VerticalLayout {
         alignment: start;
@@ -65,6 +76,42 @@ export component SettingsUiTab inherits Rectangle {
                 }
             }
 
+            // View transition speed
+            VerticalLayout {
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Text {
+                        text: "SPEED";
+                        color: Theme.text-dim;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: Math.round(root.transition-speed * 100) / 100 + "×";
+                        color: Theme.text;
+                        font-size: 13px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    value: (root.transition-speed - root.min-speed) / (root.max-speed - root.min-speed);
+                    value-changed(v) => {
+                        root.transition-speed = clamp(root.min-speed + v * (root.max-speed - root.min-speed), root.min-speed, root.max-speed);
+                        root.transition-speed-changed(root.transition-speed);
+                    }
+                }
+            }
+
             HorizontalLayout {
                 spacing: 12px;
 
@@ -83,6 +130,42 @@ export component SettingsUiTab inherits Rectangle {
                     current-index <=> root.aa-video-transition-mode;
                     selected(i) => {
                         root.aa-video-transition-changed(i);
+                    }
+                }
+            }
+
+            // AA video transition speed
+            VerticalLayout {
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Text {
+                        text: "SPEED";
+                        color: Theme.text-dim;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: Math.round(root.aa-video-transition-speed * 100) / 100 + "×";
+                        color: Theme.text;
+                        font-size: 13px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    value: (root.aa-video-transition-speed - root.min-speed) / (root.max-speed - root.min-speed);
+                    value-changed(v) => {
+                        root.aa-video-transition-speed = clamp(root.min-speed + v * (root.max-speed - root.min-speed), root.min-speed, root.max-speed);
+                        root.aa-video-transition-speed-changed(root.aa-video-transition-speed);
                     }
                 }
             }

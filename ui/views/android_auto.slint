@@ -14,6 +14,8 @@ export component AndroidAutoView inherits Rectangle {
     in property <bool> video-ready;
     // View transition mode for video start/stop: 0 = CRT | 1 = FADE | 2 = SLIDE
     in property <int> transition-mode: 0;
+    // Speed multiplier for the start/stop transition (1.0 = default).
+    in property <float> transition-speed: 1.0;
     callback touch-event(float, float, int);
 
     background: Theme.bg;
@@ -100,6 +102,7 @@ export component AndroidAutoView inherits Rectangle {
         active: root.connected && root.video-ready;
         slide: 32px;
         mode: root.transition-mode;
+        speed: root.transition-speed;
 
         Image {
             width: 100%;

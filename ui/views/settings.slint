@@ -21,6 +21,10 @@ export component SettingsView inherits Rectangle {
     in-out property <bool> aa-wireless-enabled: true;
     callback aa-wireless-changed(bool);
 
+    // Android Auto video resolution (720 or 1080 vertical lines)
+    in-out property <int> aa-resolution: 720;
+    callback aa-resolution-changed(int);
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -28,6 +32,12 @@ export component SettingsView inherits Rectangle {
     // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> aa-video-transition-mode: 1;
     callback aa-video-transition-changed(int);
+
+    // Transition speed multipliers (1.0 = default; higher = faster).
+    in-out property <float> transition-speed: 1.0;
+    callback transition-speed-changed(float);
+    in-out property <float> aa-video-transition-speed: 1.0;
+    callback aa-video-transition-speed-changed(float);
 
     HudPanel {
         width: 100%;
@@ -123,6 +133,10 @@ export component SettingsView inherits Rectangle {
                     wireless-changed(on) => {
                         root.aa-wireless-changed(on);
                     }
+                    resolution <=> root.aa-resolution;
+                    resolution-changed(v) => {
+                        root.aa-resolution-changed(v);
+                    }
                 }
 
                 if root.active-tab == 1 : SettingsUiTab {
@@ -135,6 +149,14 @@ export component SettingsView inherits Rectangle {
                     aa-video-transition-mode <=> root.aa-video-transition-mode;
                     aa-video-transition-changed(v) => {
                         root.aa-video-transition-changed(v);
+                    }
+                    transition-speed <=> root.transition-speed;
+                    transition-speed-changed(v) => {
+                        root.transition-speed-changed(v);
+                    }
+                    aa-video-transition-speed <=> root.aa-video-transition-speed;
+                    aa-video-transition-speed-changed(v) => {
+                        root.aa-video-transition-speed-changed(v);
                     }
                 }
             }

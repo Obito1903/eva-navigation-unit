@@ -54,8 +54,11 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_aa_max_dpi(cfg.max_dpi);
     window.set_aa_dpi(cfg.dpi);
     window.set_aa_wireless_enabled(cfg.wireless);
+    window.set_aa_resolution(cfg.resolution);
     window.set_transition_mode(cfg.transition_mode);
     window.set_aa_video_transition_mode(cfg.aa_video_transition_mode);
+    window.set_transition_speed(cfg.transition_speed);
+    window.set_aa_video_transition_speed(cfg.aa_video_transition_speed);
 
     ui::wire(&window, setup, cfg);
     window.run()

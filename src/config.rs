@@ -21,8 +21,17 @@ pub(crate) const DEFAULT_DPI: i32 = 160;
 pub(crate) const DEFAULT_TRANSITION_MODE: i32 = 0;
 /// Default Android Auto video start/stop transition (0 = CRT | 1 = FADE | 2 = SLIDE).
 pub(crate) const DEFAULT_AA_VIDEO_TRANSITION_MODE: i32 = 1;
+/// Default transition speed multiplier (1.0 = base timings; higher = faster).
+pub(crate) const DEFAULT_TRANSITION_SPEED: f32 = 1.0;
+/// Default Android Auto video transition speed multiplier.
+pub(crate) const DEFAULT_AA_VIDEO_TRANSITION_SPEED: f32 = 1.0;
+/// Minimum / maximum selectable transition speed multiplier.
+pub(crate) const MIN_TRANSITION_SPEED: f32 = 0.25;
+pub(crate) const MAX_TRANSITION_SPEED: f32 = 3.0;
 /// Whether wireless Android Auto is enabled by default.
 pub(crate) const DEFAULT_WIRELESS: bool = true;
+/// Default Android Auto video resolution (vertical lines: 720 or 1080).
+pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -49,6 +58,10 @@ struct Cli {
     #[arg(long, env = "EVA_WIRELESS")]
     wireless: Option<bool>,
 
+    /// Android Auto video resolution (720 or 1080).
+    #[arg(long, env = "EVA_RESOLUTION")]
+    resolution: Option<i32>,
+
     /// View transition mode (0 = CRT | 1 = FADE | 2 = SLIDE).
     #[arg(long, env = "EVA_TRANSITION_MODE")]
     transition_mode: Option<i32>,
@@ -56,6 +69,14 @@ struct Cli {
     /// Android Auto video start/stop transition (0 = CRT | 1 = FADE | 2 = SLIDE).
     #[arg(long, env = "EVA_AA_VIDEO_TRANSITION_MODE")]
     aa_video_transition_mode: Option<i32>,
+
+    /// View transition speed multiplier (higher = faster).
+    #[arg(long, env = "EVA_TRANSITION_SPEED")]
+    transition_speed: Option<f32>,
+
+    /// Android Auto video transition speed multiplier (higher = faster).
+    #[arg(long, env = "EVA_AA_VIDEO_TRANSITION_SPEED")]
+    aa_video_transition_speed: Option<f32>,
 }
 
 /// Shape of the optional TOML configuration file.
@@ -65,8 +86,11 @@ struct FileConfig {
     max_dpi: Option<i32>,
     dpi: Option<i32>,
     wireless: Option<bool>,
+    resolution: Option<i32>,
     transition_mode: Option<i32>,
     aa_video_transition_mode: Option<i32>,
+    transition_speed: Option<f32>,
+    aa_video_transition_speed: Option<f32>,
 }
 
 /// Fully resolved runtime configuration.
@@ -76,8 +100,11 @@ pub(crate) struct Config {
     pub(crate) max_dpi: i32,
     pub(crate) dpi: i32,
     pub(crate) wireless: bool,
+    pub(crate) resolution: i32,
     pub(crate) transition_mode: i32,
     pub(crate) aa_video_transition_mode: i32,
+    pub(crate) transition_speed: f32,
+    pub(crate) aa_video_transition_speed: f32,
     /// Path the configuration is loaded from and saved back to.
     pub(crate) path: PathBuf,
 }
@@ -95,6 +122,10 @@ impl Config {
         let max_dpi = cli.max_dpi.or(file.max_dpi).unwrap_or(DEFAULT_MAX_DPI);
         let dpi = cli.dpi.or(file.dpi).unwrap_or(DEFAULT_DPI);
         let wireless = cli.wireless.or(file.wireless).unwrap_or(DEFAULT_WIRELESS);
+        let resolution = cli
+            .resolution
+            .or(file.resolution)
+            .unwrap_or(DEFAULT_RESOLUTION);
         let transition_mode = cli
             .transition_mode
             .or(file.transition_mode)
@@ -103,14 +134,25 @@ impl Config {
             .aa_video_transition_mode
             .or(file.aa_video_transition_mode)
             .unwrap_or(DEFAULT_AA_VIDEO_TRANSITION_MODE);
+        let transition_speed = cli
+            .transition_speed
+            .or(file.transition_speed)
+            .unwrap_or(DEFAULT_TRANSITION_SPEED);
+        let aa_video_transition_speed = cli
+            .aa_video_transition_speed
+            .or(file.aa_video_transition_speed)
+            .unwrap_or(DEFAULT_AA_VIDEO_TRANSITION_SPEED);
 
         Self::sanitised(
             min_dpi,
             max_dpi,
             dpi,
             wireless,
+            resolution,
             transition_mode,
             aa_video_transition_mode,
+            transition_speed,
+            aa_video_transition_speed,
             path,
         )
     }
@@ -123,8 +165,11 @@ impl Config {
         max_dpi: i32,
         dpi: i32,
         wireless: bool,
+        resolution: i32,
         transition_mode: i32,
         aa_video_transition_mode: i32,
+        transition_speed: f32,
+        aa_video_transition_speed: f32,
         path: PathBuf,
     ) -> Self {
         let mut min_dpi = min_dpi.max(1);
@@ -141,8 +186,12 @@ impl Config {
             max_dpi,
             dpi,
             wireless,
+            resolution: if resolution >= 1080 { 1080 } else { 720 },
             transition_mode: transition_mode.clamp(0, 2),
             aa_video_transition_mode: aa_video_transition_mode.clamp(0, 2),
+            transition_speed: transition_speed.clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
+            aa_video_transition_speed: aa_video_transition_speed
+                .clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
             path,
         }
     }
@@ -154,8 +203,11 @@ impl Config {
             max_dpi: Some(self.max_dpi),
             dpi: Some(self.dpi),
             wireless: Some(self.wireless),
+            resolution: Some(self.resolution),
             transition_mode: Some(self.transition_mode),
             aa_video_transition_mode: Some(self.aa_video_transition_mode),
+            transition_speed: Some(self.transition_speed),
+            aa_video_transition_speed: Some(self.aa_video_transition_speed),
         };
         match toml::to_string_pretty(&file) {
             Ok(contents) => {

@@ -1,0 +1,74 @@
+import { Theme } from "../theme.slint";
+
+// A single clean capsule bar (MAGI "toxicity level" style).
+component CapsuleBar inherits Rectangle {
+    in property <bool> filled: false;
+    in property <color> tint: #5cf0d8;
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    background: transparent;
+
+    Rectangle {
+        x: parent.width * 0.18;
+        width: parent.width * 0.64;
+        height: parent.height;
+        border-radius: self.width / 2;
+        background: filled ? tint : #14202e;
+        opacity: filled ? 1.0 : 0.5;
+    }
+}
+
+// MAGI-style horizontal capsule bar meter / slider.
+// A row of rounded capsules with a smooth cyan→blue gradient that fill up to
+// the selected value.
+export component CapsuleBarSlider inherits Rectangle {
+    in-out property <float> value: 0.5;  // 0.0 – 1.0
+    callback value-changed(float);
+    height: 56px;
+
+    property <int> num-bars: 96;
+    property <int> filled-bars: Math.round(value * num-bars);
+
+    // Linear interpolate cyan (#5cf0d8) → mid (#3aa0e6) → blue (#2030d8).
+    function mix-tint(t: float) -> color {
+        return t < 0.5
+            ? Colors.rgb(
+                Math.round(92 + (58 - 92) * (t / 0.5)),
+                Math.round(240 + (160 - 240) * (t / 0.5)),
+                Math.round(216 + (230 - 216) * (t / 0.5)))
+            : Colors.rgb(
+                Math.round(58 + (32 - 58) * ((t - 0.5) / 0.5)),
+                Math.round(160 + (48 - 160) * ((t - 0.5) / 0.5)),
+                Math.round(230 + (216 - 230) * ((t - 0.5) / 0.5)));
+    }
+
+    Rectangle {
+        background: #0a1118;
+        border-width: 1px;
+        border-color: #1a2838;
+        border-radius: 4px;
+
+        HorizontalLayout {
+            padding: 6px;
+            spacing: 2px;
+
+            for idx in root.num-bars : CapsuleBar {
+                filled: idx < root.filled-bars;
+                tint: root.mix-tint(idx / (root.num-bars - 1));
+            }
+        }
+
+        TouchArea {
+            moved => {
+                if (self.pressed) {
+                    root.value = clamp(self.mouse-x / self.width, 0, 1);
+                    root.value-changed(root.value);
+                }
+            }
+            clicked => {
+                root.value = clamp(self.mouse-x / self.width, 0, 1);
+                root.value-changed(root.value);
+            }
+        }
+    }
+}

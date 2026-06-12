@@ -10,6 +10,8 @@ export component ViewSlot inherits Rectangle {
     in property <bool> active;
     in property <length> slide: -32px;
     in property <int> mode: 0;   // 0 = CRT | 1 = FADE | 2 = SLIDE
+    // Speed multiplier for all timings (1.0 = default; >1 faster, <1 slower).
+    in property <float> speed: 1.0;
 
     width: 100%;
     height: 100%;
@@ -28,19 +30,23 @@ export component ViewSlot inherits Rectangle {
 
         // Horizontal sweep: expands first on power-on, collapses last on power-off.
         animate width {
-            duration: Theme.crt-sweep;
-            delay: root.active ? 0ms : Theme.crt-gap;
+            duration: Theme.crt-sweep / root.speed;
+            delay: root.active ? 0ms : Theme.crt-gap / root.speed;
             easing: ease-in-out;
         }
         // Vertical unfold: expands last on power-on, collapses first on power-off.
         animate height {
-            duration: Theme.crt-sweep;
-            delay: root.active ? Theme.crt-gap : 0ms;
+            duration: Theme.crt-sweep / root.speed;
+            delay: root.active ? Theme.crt-gap / root.speed : 0ms;
             easing: ease-in-out;
         }
-        // Horizontal slide (SLIDE mode).
+        // Horizontal slide (SLIDE mode only). In CRT mode `x` is derived from
+        // the animated `width` to keep the box centered, so it must NOT have
+        // its own animation — otherwise it lags behind `width` and the picture
+        // appears to slide sideways during the collapse. Duration 0 makes `x`
+        // track the centering math exactly; SLIDE mode uses the real easing.
         animate x {
-            duration: Theme.view-anim;
+            duration: root.mode == 2 ? Theme.view-anim / root.speed : 0ms;
             easing: ease-in-out;
         }
         // CRT: snap to full brightness the instant the tube powers on so the
@@ -49,9 +55,9 @@ export component ViewSlot inherits Rectangle {
         // FADE/SLIDE: straightforward crossfade.
         animate opacity {
             duration: root.mode == 0
-                ? (root.active ? 0ms : Theme.crt-flash)
-                : (root.mode == 1 ? Theme.fade-anim : Theme.view-anim);
-            delay: (root.mode == 0 && !root.active) ? Theme.crt-gap + Theme.crt-sweep : 0ms;
+                ? (root.active ? 0ms : Theme.crt-flash / root.speed)
+                : (root.mode == 1 ? Theme.fade-anim / root.speed : Theme.view-anim / root.speed);
+            delay: (root.mode == 0 && !root.active) ? (Theme.crt-gap + Theme.crt-sweep) / root.speed : 0ms;
             easing: ease-in-out;
         }
 
@@ -67,8 +73,8 @@ export component ViewSlot inherits Rectangle {
             background: white;
             opacity: (root.mode == 0 && !root.active) ? 0.85 : 0.0;
             animate opacity {
-                duration: Theme.crt-flash;
-                delay: (root.mode == 0 && !root.active) ? Theme.crt-sweep - 10ms : 0ms;
+                duration: Theme.crt-flash / root.speed;
+                delay: (root.mode == 0 && !root.active) ? (Theme.crt-sweep - 10ms) / root.speed : 0ms;
                 easing: ease-out;
             }
         }

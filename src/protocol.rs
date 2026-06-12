@@ -329,6 +329,57 @@ impl android_auto::AndroidAutoMainTrait for AndroidAuto {
 
 // ── Constructor & start ─────────────────────────────────────────────────────
 
+/// Build a [`VideoConfiguration`] for the requested vertical resolution
+/// (`720` or `1080`), sizing the active picture to match the head unit's
+/// screen aspect ratio via margins.
+///
+/// Android Auto encodes at fixed 16:9 base resolutions (720p = 1280×720,
+/// 1080p = 1920×1080). When the screen is not 16:9 we keep the base buffer and
+/// add margins so the visible region matches `screen_w / screen_h`.
+pub(crate) fn build_video_configuration(
+    resolution: i32,
+    screen_w: u32,
+    screen_h: u32,
+    dpi: u16,
+) -> VideoConfiguration {
+    let (res_enum, base_w, base_h) = if resolution >= 1080 {
+        (android_auto::Wifi::video_resolution::Enum::_1080p, 1920i32, 1080i32)
+    } else {
+        (android_auto::Wifi::video_resolution::Enum::_720p, 1280i32, 720i32)
+    };
+
+    // Guard against a degenerate/zero screen size; fall back to the 16:9 base.
+    let aspect = if screen_w == 0 || screen_h == 0 {
+        base_w as f64 / base_h as f64
+    } else {
+        screen_w as f64 / screen_h as f64
+    };
+
+    // Fit the screen aspect inside the base buffer, padding the shorter axis.
+    let (margin_width, margin_height) = {
+        let target_w = (base_h as f64 * aspect).round() as i32;
+        if target_w <= base_w {
+            ((base_w - target_w).max(0) as u16, 0u16)
+        } else {
+            let target_h = (base_w as f64 / aspect).round() as i32;
+            (0u16, (base_h - target_h).max(0) as u16)
+        }
+    };
+
+    log::info!(
+        "Android Auto video: {}p base {base_w}x{base_h}, screen {screen_w}x{screen_h}, margins {margin_width}x{margin_height}",
+        if resolution >= 1080 { 1080 } else { 720 }
+    );
+
+    VideoConfiguration {
+        resolution: res_enum,
+        fps: android_auto::Wifi::video_fps::Enum::_30,
+        dpi,
+        margin_width,
+        margin_height,
+    }
+}
+
 impl AndroidAuto {
     pub(crate) fn new(
         mut recv: tokio::sync::mpsc::Receiver<MessageToAsync>,
@@ -338,6 +389,7 @@ impl AndroidAuto {
         network: android_auto::NetworkInformation,
         android_recv: tokio::sync::mpsc::Receiver<android_auto::SendableAndroidAutoMessage>,
         android_send: tokio::sync::mpsc::Sender<android_auto::SendableAndroidAutoMessage>,
+        video_config: VideoConfiguration,
     ) -> Self {
         let mut sensors = HashSet::new();
         sensors.insert(android_auto::Wifi::sensor_type::Enum::DRIVING_STATUS);
@@ -379,11 +431,7 @@ impl AndroidAuto {
             blue: android_auto::BluetoothInformation {
                 address: blue_address,
             },
-            config: VideoConfiguration {
-                resolution: android_auto::Wifi::video_resolution::Enum::_480p,
-                fps: android_auto::Wifi::video_fps::Enum::_30,
-                dpi: 111,
-            },
+            config: video_config,
             sensors: android_auto::SensorInformation { sensors },
             input_config: android_auto::InputConfiguration {
                 keycodes: vec![1, 2, 3, 4, 5],

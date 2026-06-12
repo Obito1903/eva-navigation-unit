@@ -40,6 +40,10 @@ export component AppWindow inherits Window {
     in-out property <bool> aa-wireless-enabled: true;
     callback aa-wireless-changed(bool);
 
+    // Android Auto video resolution (720 or 1080 vertical lines)
+    in-out property <int> aa-resolution: 720;
+    callback aa-resolution-changed(int);
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -47,6 +51,12 @@ export component AppWindow inherits Window {
     // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> aa-video-transition-mode: 1;
     callback aa-video-transition-changed(int);
+
+    // Transition speed multipliers (1.0 = default; higher = faster).
+    in-out property <float> transition-speed: 1.0;
+    callback transition-speed-changed(float);
+    in-out property <float> aa-video-transition-speed: 1.0;
+    callback aa-video-transition-speed-changed(float);
 
     // Fired by the video TouchArea: x, y in video-source pixels, action (0=down 1=move 2=up)
     callback touch-event(float, float, int);
@@ -78,6 +88,7 @@ export component AppWindow inherits Window {
                 active: root.active-view == 0;
                 slide: -32px;
                 mode: root.transition-mode;
+                speed: root.transition-speed;
 
                 AndroidAutoView {
                     width: 100%;
@@ -87,6 +98,7 @@ export component AppWindow inherits Window {
                     video-ready: root.aa-video-ready;
                     active: root.active-view == 0;
                     transition-mode: root.aa-video-transition-mode;
+                    transition-speed: root.aa-video-transition-speed;
                     touch-event(x, y, k) => {
                         root.touch-event(x, y, k);
                     }
@@ -98,6 +110,7 @@ export component AppWindow inherits Window {
                 active: root.active-view == 1;
                 slide: 32px;
                 mode: root.transition-mode;
+                speed: root.transition-speed;
 
                 SettingsView {
                     width: 100%;
@@ -116,9 +129,21 @@ export component AppWindow inherits Window {
                     aa-video-transition-changed(v) => {
                         root.aa-video-transition-changed(v);
                     }
+                    transition-speed <=> root.transition-speed;
+                    transition-speed-changed(v) => {
+                        root.transition-speed-changed(v);
+                    }
+                    aa-video-transition-speed <=> root.aa-video-transition-speed;
+                    aa-video-transition-speed-changed(v) => {
+                        root.aa-video-transition-speed-changed(v);
+                    }
                     aa-wireless-enabled <=> root.aa-wireless-enabled;
                     aa-wireless-changed(on) => {
                         root.aa-wireless-changed(on);
+                    }
+                    aa-resolution <=> root.aa-resolution;
+                    aa-resolution-changed(v) => {
+                        root.aa-resolution-changed(v);
                     }
                 }
             }

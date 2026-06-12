@@ -2,7 +2,7 @@
 //! protocol, and the channels bridging it to the UI thread.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 
 use bluetooth_rust::{BluetoothAdapterTrait, MessageToBluetoothHost};
 
@@ -11,6 +11,18 @@ use android_auto::HeadUnitInfo;
 use crate::messages::{MessageFromAsync, MessageToAsync};
 use crate::nmrs_extensions;
 use crate::protocol::AndroidAuto;
+
+/// Android Auto video settings shared with the UI thread. Read whenever the
+/// worker (re)builds the protocol so changes take effect on the next
+/// connection.
+pub(crate) struct VideoSettings {
+    /// Vertical resolution lines (720 or 1080).
+    pub(crate) resolution: AtomicI32,
+    /// Current screen width used to derive the picture aspect ratio.
+    pub(crate) screen_w: AtomicU32,
+    /// Current screen height used to derive the picture aspect ratio.
+    pub(crate) screen_h: AtomicU32,
+}
 
 /// Holds the worker thread and the channels used to communicate with it.
 pub(crate) struct AndroidAutoContainer {
@@ -21,7 +33,11 @@ pub(crate) struct AndroidAutoContainer {
 }
 
 impl AndroidAutoContainer {
-    pub(crate) fn new(setup: android_auto::AndroidAutoSetup, wireless: Arc<AtomicBool>) -> Self {
+    pub(crate) fn new(
+        setup: android_auto::AndroidAutoSetup,
+        wireless: Arc<AtomicBool>,
+        video: Arc<VideoSettings>,
+    ) -> Self {
         let to_async = tokio::sync::mpsc::channel(50);
         let from_async = tokio::sync::mpsc::channel(50);
         let kill = tokio::sync::oneshot::channel::<()>();
@@ -125,6 +141,12 @@ impl AndroidAutoContainer {
 
                 // ── Protocol setup ────────────────────────────────────────
                 let aauto = tokio::sync::mpsc::channel(50);
+                let video_config = crate::protocol::build_video_configuration(
+                    video.resolution.load(Ordering::Relaxed),
+                    video.screen_w.load(Ordering::Relaxed),
+                    video.screen_h.load(Ordering::Relaxed),
+                    111,
+                );
                 let aa = AndroidAuto::new(
                     to_async.1,
                     from_async.0,
@@ -141,6 +163,7 @@ impl AndroidAutoContainer {
                     },
                     aauto.1,
                     aauto.0,
+                    video_config,
                 );
 
                 let config = android_auto::AndroidAutoConfiguration {

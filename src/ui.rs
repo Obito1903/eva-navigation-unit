@@ -1,18 +1,32 @@
 //! Wires the Slint window to the android-auto worker: forwards touch events,
 //! spawns the video decoder, and pumps worker → UI messages on a timer.
 
-use crate::container::AndroidAutoContainer;
+use crate::container::{AndroidAutoContainer, VideoSettings};
 use crate::messages::{MessageFromAsync, MessageToAsync, VideoCommand};
 use crate::video;
 use crate::AppWindow;
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 use std::sync::Arc;
 
 /// How often the UI thread drains messages coming from the worker.
 const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
+
+/// Copy the window's current size into the shared video settings so the next
+/// (re)connection negotiates a picture matching the live screen aspect ratio.
+/// Falls back to 16:9 (1280×720) before the window has been realised.
+fn refresh_screen_size(win: &AppWindow, video: &VideoSettings) {
+    let size = win.window().size();
+    let (w, h) = if size.width == 0 || size.height == 0 {
+        (1280, 720)
+    } else {
+        (size.width, size.height)
+    };
+    video.screen_w.store(w, Ordering::Relaxed);
+    video.screen_h.store(h, Ordering::Relaxed);
+}
 
 /// Connect the window's callbacks and the worker container, and start the
 /// polling timer. The returned timer is leaked into the event loop for the
@@ -28,6 +42,15 @@ pub(crate) fn wire(
     // the change back to the config file on the UI thread.
     let cfg = Rc::new(RefCell::new(cfg));
 
+    // Shared Android Auto video settings, read by the worker on every
+    // (re)connection. Seeded from config + a 16:9 fallback screen size.
+    let video = Arc::new(VideoSettings {
+        resolution: AtomicI32::new(cfg.borrow().resolution),
+        screen_w: AtomicU32::new(1280),
+        screen_h: AtomicU32::new(720),
+    });
+    refresh_screen_size(window, &video);
+
     // ── Wireless toggle: Settings UI → worker ─────────────────────────────
     let wireless = Arc::new(AtomicBool::new(cfg.borrow().wireless));
     {
@@ -38,6 +61,19 @@ pub(crate) fn wire(
             wireless.store(enabled, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.wireless = enabled;
+            cfg.save();
+        });
+    }
+
+    // ── Resolution: Settings UI → config + worker ─────────────────────────
+    {
+        let video = video.clone();
+        let cfg = cfg.clone();
+        window.on_aa_resolution_changed(move |resolution| {
+            log::info!("Android Auto resolution set to {resolution}p (applies on next connection)");
+            video.resolution.store(resolution, Ordering::Relaxed);
+            let mut cfg = cfg.borrow_mut();
+            cfg.resolution = resolution;
             cfg.save();
         });
     }
@@ -64,8 +100,30 @@ pub(crate) fn wire(
         });
     }
 
+    // ── View transition speed: Settings UI → config ───────────────────────
+    {
+        let cfg = cfg.clone();
+        window.on_transition_speed_changed(move |speed| {
+            log::info!("View transition speed set to {speed:.2}×");
+            let mut cfg = cfg.borrow_mut();
+            cfg.transition_speed = speed;
+            cfg.save();
+        });
+    }
+
+    // ── Android Auto video transition speed: Settings UI → config ─────────
+    {
+        let cfg = cfg.clone();
+        window.on_aa_video_transition_speed_changed(move |speed| {
+            log::info!("Android Auto video transition speed set to {speed:.2}×");
+            let mut cfg = cfg.borrow_mut();
+            cfg.aa_video_transition_speed = speed;
+            cfg.save();
+        });
+    }
+
     // ── Start android-auto in background ──────────────────────────────────
-    let mut container = AndroidAutoContainer::new(setup, wireless.clone());
+    let mut container = AndroidAutoContainer::new(setup, wireless.clone(), video.clone());
 
     // The worker is torn down and recreated on every disconnect, which makes a
     // fresh message channel each time. Touch input must always target the
@@ -104,7 +162,10 @@ pub(crate) fn wire(
             match msg {
                 MessageFromAsync::ExitContainer => {
                     log::info!("Container exited — restarting");
-                    container = AndroidAutoContainer::new(setup, wireless.clone());
+                    // Pick up the latest screen size so the renegotiated stream
+                    // matches the current window aspect ratio.
+                    refresh_screen_size(&win, &video);
+                    container = AndroidAutoContainer::new(setup, wireless.clone(), video.clone());
                     // Point touch input at the new worker's channel.
                     *send_touch.borrow_mut() = container.send.clone();
                 }

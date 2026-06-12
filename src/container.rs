@@ -186,7 +186,20 @@ impl AndroidAutoContainer {
 
 impl Drop for AndroidAutoContainer {
     fn drop(&mut self) {
+        // Signal the worker to stop.
         let _ = self.kill.take().map(|s| s.send(()));
-        self.thread.take().map(|t| t.join());
+
+        // Join off the current thread. `Drop` runs on the UI/event-loop thread
+        // when the container is replaced on restart, and joining the worker
+        // here would block the event loop until the tokio runtime finishes
+        // tearing down (bluetooth/USB cleanup) — freezing the UI. Reclaim the
+        // thread in the background instead so the event loop never stalls.
+        if let Some(thread) = self.thread.take() {
+            std::thread::spawn(move || {
+                if let Err(e) = thread.join() {
+                    log::warn!("android-auto worker thread panicked on shutdown: {e:?}");
+                }
+            });
+        }
     }
 }

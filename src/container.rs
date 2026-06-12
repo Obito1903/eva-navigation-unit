@@ -59,21 +59,38 @@ impl AndroidAutoContainer {
                 let hotspot_ssid = "Hotspot".to_string();
                 let hotspot_psk = "qwertyuiop".to_string();
                 let wifi_mac = if wireless.load(Ordering::Relaxed) {
-                    let wifi = nmrs::NetworkManager::new().await.expect("Wifi not found");
-                    let wifi_dev = {
-                        let devs = wifi.list_wireless_devices().await.unwrap_or_default();
-                        devs.into_iter()
-                            .find(|d| d.device_type == nmrs::DeviceType::Wifi)
-                            .expect("No wifi device found")
-                    };
-                    nmrs_extensions::start_hotspot(
-                        hotspot_ssid.clone(),
-                        hotspot_psk.clone(),
-                        &wifi_dev.path,
-                    )
+                    // Wireless setup must never abort the worker: some devices
+                    // have wifi hardware that cannot host an AP (e.g. Broadcom
+                    // FullMAC `brcmfmac` chips whose firmware lacks AP mode).
+                    // If anything here fails we log a warning and fall back to
+                    // USB-only Android Auto instead of panicking.
+                    async {
+                        let wifi = nmrs::NetworkManager::new()
+                            .await
+                            .map_err(|e| format!("NetworkManager unavailable: {e}"))?;
+                        let wifi_dev = {
+                            let devs = wifi.list_wireless_devices().await.unwrap_or_default();
+                            devs.into_iter()
+                                .find(|d| d.device_type == nmrs::DeviceType::Wifi)
+                                .ok_or_else(|| "No wifi device found".to_string())?
+                        };
+                        nmrs_extensions::start_hotspot(
+                            hotspot_ssid.clone(),
+                            hotspot_psk.clone(),
+                            &wifi_dev.path,
+                        )
+                        .await
+                        .map_err(|e| format!("Failed to start wifi hotspot: {e}"))?;
+                        Ok::<String, String>(wifi_dev.identity.current_mac.clone())
+                    }
                     .await
-                    .expect("Failed to start wifi hotspot");
-                    wifi_dev.identity.current_mac.clone()
+                    .unwrap_or_else(|e| {
+                        log::warn!(
+                            "Wireless Android Auto setup failed ({e}); \
+                             falling back to USB-only"
+                        );
+                        String::new()
+                    })
                 } else {
                     log::info!("Wireless Android Auto disabled — skipping wifi setup");
                     String::new()

@@ -25,6 +25,13 @@ zvariant = "5"
 [build-dependencies]
 slint-build = "1"
 
+# Optimize dependencies even in debug builds. The H.264 → RGB pixel conversion
+# (openh264) is ~80× slower when compiled unoptimized, which made dev builds
+# stutter badly. This keeps fast incremental recompiles of our own crate while
+# building dependencies with optimizations so video decodes in real time.
+[profile.dev.package."*"]
+opt-level = 3
+
 [features]
 # Both transport modes enabled by default — match the android-auto path dep
 default = []

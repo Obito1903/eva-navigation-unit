@@ -12,7 +12,7 @@ component CapsuleBar inherits Rectangle {
         x: parent.width * 0.18;
         width: parent.width * 0.64;
         height: parent.height;
-        border-radius: self.width / 2;
+        border-radius: self.width / 4;
         background: filled ? tint : #14202e;
         opacity: filled ? 1.0 : 0.5;
     }
@@ -46,7 +46,7 @@ export component CapsuleBarSlider inherits Rectangle {
         background: #0a1118;
         border-width: 1px;
         border-color: #1a2838;
-        border-radius: 4px;
+        border-radius: 0px;
 
         HorizontalLayout {
             padding: 6px;

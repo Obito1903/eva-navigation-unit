@@ -104,6 +104,7 @@ export component SettingsUiTab inherits Rectangle {
                 }
 
                 CapsuleBarSlider {
+                    height: 32px;
                     value: (root.transition-speed - root.min-speed) / (root.max-speed - root.min-speed);
                     value-changed(v) => {
                         root.transition-speed = clamp(root.min-speed + v * (root.max-speed - root.min-speed), root.min-speed, root.max-speed);
@@ -162,6 +163,7 @@ export component SettingsUiTab inherits Rectangle {
                 }
 
                 CapsuleBarSlider {
+                    height: 32px;
                     value: (root.aa-video-transition-speed - root.min-speed) / (root.max-speed - root.min-speed);
                     value-changed(v) => {
                         root.aa-video-transition-speed = clamp(root.min-speed + v * (root.max-speed - root.min-speed), root.min-speed, root.max-speed);

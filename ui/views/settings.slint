@@ -2,17 +2,32 @@ import { Theme } from "../theme.slint";
 import { HudPanel } from "../components/hud_panel.slint";
 import { GlowText } from "../components/glow_text.slint";
 import { SettingsAndroidAutoTab } from "settings_android_auto.slint";
+import { SettingsUiTab } from "settings_ui.slint";
 
 // System / settings view with category tabs.
 export component SettingsView inherits Rectangle {
     background: Theme.bg;
 
-    // 0 = Android Auto
+    // 0 = Android Auto  |  1 = UI
     in-out property <int> active-tab: 0;
 
     // Android Auto DPI (exposed for Rust binding)
     in-out property <int> aa-dpi: 160;
+    in-out property <int> aa-min-dpi: 80;
+    in-out property <int> aa-max-dpi: 640;
     callback aa-dpi-changed(int);
+
+    // Wireless Android Auto enable/disable
+    in-out property <bool> aa-wireless-enabled: true;
+    callback aa-wireless-changed(bool);
+
+    // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
+    in-out property <int> transition-mode: 0;
+    callback transition-changed(int);
+
+    // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
+    in-out property <int> aa-video-transition-mode: 1;
+    callback aa-video-transition-changed(int);
 
     HudPanel {
         width: 100%;
@@ -56,6 +71,31 @@ export component SettingsView inherits Rectangle {
                             }
                         }
                     }
+
+                    // Tab: UI
+                    Rectangle {
+                        width: tab-ui-text.preferred-width + 32px;
+                        height: 36px;
+                        background: root.active-tab == 1 ? Theme.red-dim : transparent;
+                        border-width: 1px;
+                        border-color: root.active-tab == 1 ? Theme.red : Theme.red-dim;
+
+                        tab-ui-text := Text {
+                            text: "UI";
+                            color: root.active-tab == 1 ? Theme.text : Theme.text-mute;
+                            font-size: 12px;
+                            font-weight: 700;
+                            letter-spacing: 2px;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                root.active-tab = 1;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -74,8 +114,27 @@ export component SettingsView inherits Rectangle {
                     width: 100%;
                     height: 100%;
                     dpi <=> root.aa-dpi;
+                    min-dpi <=> root.aa-min-dpi;
+                    max-dpi <=> root.aa-max-dpi;
                     dpi-changed(v) => {
                         root.aa-dpi-changed(v);
+                    }
+                    wireless-enabled <=> root.aa-wireless-enabled;
+                    wireless-changed(on) => {
+                        root.aa-wireless-changed(on);
+                    }
+                }
+
+                if root.active-tab == 1 : SettingsUiTab {
+                    width: 100%;
+                    height: 100%;
+                    transition-mode <=> root.transition-mode;
+                    transition-changed(v) => {
+                        root.transition-changed(v);
+                    }
+                    aa-video-transition-mode <=> root.aa-video-transition-mode;
+                    aa-video-transition-changed(v) => {
+                        root.aa-video-transition-changed(v);
                     }
                 }
             }

@@ -6,6 +6,10 @@ use crate::messages::{MessageFromAsync, MessageToAsync, VideoCommand};
 use crate::video;
 use crate::AppWindow;
 use slint::ComponentHandle;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// How often the UI thread drains messages coming from the worker.
 const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
@@ -13,11 +17,55 @@ const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
 /// Connect the window's callbacks and the worker container, and start the
 /// polling timer. The returned timer is leaked into the event loop for the
 /// lifetime of the program.
-pub(crate) fn wire(window: &AppWindow, setup: android_auto::AndroidAutoSetup) {
+pub(crate) fn wire(
+    window: &AppWindow,
+    setup: android_auto::AndroidAutoSetup,
+    cfg: crate::config::Config,
+) {
     let window_weak = window.as_weak();
 
+    // Shared, mutable configuration. Settings callbacks update it and persist
+    // the change back to the config file on the UI thread.
+    let cfg = Rc::new(RefCell::new(cfg));
+
+    // ── Wireless toggle: Settings UI → worker ─────────────────────────────
+    let wireless = Arc::new(AtomicBool::new(cfg.borrow().wireless));
+    {
+        let wireless = wireless.clone();
+        let cfg = cfg.clone();
+        window.on_aa_wireless_changed(move |enabled| {
+            log::info!("Wireless Android Auto {}", if enabled { "enabled" } else { "disabled" });
+            wireless.store(enabled, Ordering::Relaxed);
+            let mut cfg = cfg.borrow_mut();
+            cfg.wireless = enabled;
+            cfg.save();
+        });
+    }
+
+    // ── View transition: Settings UI → config ─────────────────────────────
+    {
+        let cfg = cfg.clone();
+        window.on_transition_changed(move |mode| {
+            log::info!("View transition mode set to {mode}");
+            let mut cfg = cfg.borrow_mut();
+            cfg.transition_mode = mode;
+            cfg.save();
+        });
+    }
+
+    // ── Android Auto video transition: Settings UI → config ───────────────
+    {
+        let cfg = cfg.clone();
+        window.on_aa_video_transition_changed(move |mode| {
+            log::info!("Android Auto video transition mode set to {mode}");
+            let mut cfg = cfg.borrow_mut();
+            cfg.aa_video_transition_mode = mode;
+            cfg.save();
+        });
+    }
+
     // ── Start android-auto in background ──────────────────────────────────
-    let mut container = AndroidAutoContainer::new(setup);
+    let mut container = AndroidAutoContainer::new(setup, wireless.clone());
     let send_touch = container.send.clone();
 
     // ── Touch events: Slint UI → android-auto ─────────────────────────────
@@ -41,7 +89,7 @@ pub(crate) fn wire(window: &AppWindow, setup: android_auto::AndroidAutoSetup) {
             match msg {
                 MessageFromAsync::ExitContainer => {
                     log::info!("Container exited — restarting");
-                    container = AndroidAutoContainer::new(setup);
+                    container = AndroidAutoContainer::new(setup, wireless.clone());
                 }
                 MessageFromAsync::Connected => {
                     log::info!("Android Auto connected");

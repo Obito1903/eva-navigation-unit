@@ -25,4 +25,9 @@ export global Theme {
     // Animation timings
     out property <duration> view-anim: 250ms;
     out property <duration> fade-anim: 400ms;
+
+    // CRT power on/off transition timings (used by ViewSlot)
+    out property <duration> crt-sweep: 130ms;   // each axis collapse/expand
+    out property <duration> crt-flash: 90ms;     // phosphor flash fade
+    out property <duration> crt-gap: 140ms;      // delay before second axis
 }

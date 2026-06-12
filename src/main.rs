@@ -20,6 +20,7 @@
 //! features (see Cargo.toml).
 
 mod audio;
+mod config;
 mod container;
 mod messages;
 mod nmrs_extensions;
@@ -37,9 +38,25 @@ fn main() -> Result<(), slint::PlatformError> {
         .init()
         .unwrap();
 
+    let cfg = config::Config::load();
+    log::info!(
+        "DPI configured: current={} min={} max={}",
+        cfg.dpi,
+        cfg.min_dpi,
+        cfg.max_dpi
+    );
+    log::info!("Wireless Android Auto: {}", cfg.wireless);
+
     let setup = android_auto::setup();
 
     let window = AppWindow::new()?;
-    ui::wire(&window, setup);
+    window.set_aa_min_dpi(cfg.min_dpi);
+    window.set_aa_max_dpi(cfg.max_dpi);
+    window.set_aa_dpi(cfg.dpi);
+    window.set_aa_wireless_enabled(cfg.wireless);
+    window.set_transition_mode(cfg.transition_mode);
+    window.set_aa_video_transition_mode(cfg.aa_video_transition_mode);
+
+    ui::wire(&window, setup, cfg);
     window.run()
 }

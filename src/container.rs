@@ -2,6 +2,7 @@
 //! protocol, and the channels bridging it to the UI thread.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use bluetooth_rust::{BluetoothAdapterTrait, MessageToBluetoothHost};
 
@@ -20,7 +21,7 @@ pub(crate) struct AndroidAutoContainer {
 }
 
 impl AndroidAutoContainer {
-    pub(crate) fn new(setup: android_auto::AndroidAutoSetup) -> Self {
+    pub(crate) fn new(setup: android_auto::AndroidAutoSetup, wireless: Arc<AtomicBool>) -> Self {
         let to_async = tokio::sync::mpsc::channel(50);
         let from_async = tokio::sync::mpsc::channel(50);
         let kill = tokio::sync::oneshot::channel::<()>();
@@ -34,23 +35,31 @@ impl AndroidAutoContainer {
         let thread = std::thread::spawn(move || {
             let r = rt.block_on(async {
                 // ── Wireless setup ────────────────────────────────────────
-                let wifi = nmrs::NetworkManager::new().await.expect("Wifi not found");
-                let wifi_dev = {
-                    let devs = wifi.list_wireless_devices().await.unwrap_or_default();
-                    devs.into_iter()
-                        .find(|d| d.device_type == nmrs::DeviceType::Wifi)
-                        .expect("No wifi device found")
-                };
-
+                // Only touch wifi hardware when wireless Android Auto is
+                // enabled. In USB-only mode the device may not exist at all,
+                // and requiring it here would abort the worker (and USB too).
                 let hotspot_ssid = "Hotspot".to_string();
                 let hotspot_psk = "qwertyuiop".to_string();
-                nmrs_extensions::start_hotspot(
-                    hotspot_ssid.clone(),
-                    hotspot_psk.clone(),
-                    &wifi_dev.path,
-                )
-                .await
-                .expect("Failed to start wifi hotspot");
+                let wifi_mac = if wireless.load(Ordering::Relaxed) {
+                    let wifi = nmrs::NetworkManager::new().await.expect("Wifi not found");
+                    let wifi_dev = {
+                        let devs = wifi.list_wireless_devices().await.unwrap_or_default();
+                        devs.into_iter()
+                            .find(|d| d.device_type == nmrs::DeviceType::Wifi)
+                            .expect("No wifi device found")
+                    };
+                    nmrs_extensions::start_hotspot(
+                        hotspot_ssid.clone(),
+                        hotspot_psk.clone(),
+                        &wifi_dev.path,
+                    )
+                    .await
+                    .expect("Failed to start wifi hotspot");
+                    wifi_dev.identity.current_mac.clone()
+                } else {
+                    log::info!("Wireless Android Auto disabled — skipping wifi setup");
+                    String::new()
+                };
 
                 let (mut bluechan, bluetooth) = {
                     let ch = tokio::sync::mpsc::channel(5);
@@ -124,7 +133,7 @@ impl AndroidAutoContainer {
                     android_auto::NetworkInformation {
                         ssid: hotspot_ssid,
                         psk: hotspot_psk,
-                        mac_addr: wifi_dev.identity.current_mac.clone(),
+                        mac_addr: wifi_mac,
                         ip: "10.42.0.1".to_string(),
                         port: 5277,
                         security_mode: android_auto::Bluetooth::SecurityMode::WPA2_PERSONAL,

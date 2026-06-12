@@ -29,7 +29,21 @@ export component AppWindow inherits Window {
 
     // Android Auto DPI setting
     in-out property <int> aa-dpi: 160;
+    in-out property <int> aa-min-dpi: 80;
+    in-out property <int> aa-max-dpi: 640;
     callback aa-dpi-changed(int);
+
+    // Wireless Android Auto enable/disable
+    in-out property <bool> aa-wireless-enabled: true;
+    callback aa-wireless-changed(bool);
+
+    // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
+    in-out property <int> transition-mode: 0;
+    callback transition-changed(int);
+
+    // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
+    in-out property <int> aa-video-transition-mode: 1;
+    callback aa-video-transition-changed(int);
 
     // Fired by the video TouchArea: x, y in video-source pixels, action (0=down 1=move 2=up)
     callback touch-event(float, float, int);
@@ -60,6 +74,7 @@ export component AppWindow inherits Window {
             ViewSlot {
                 active: root.active-view == 0;
                 slide: -32px;
+                mode: root.transition-mode;
 
                 AndroidAutoView {
                     width: 100%;
@@ -67,6 +82,7 @@ export component AppWindow inherits Window {
                     video-frame: root.video-frame;
                     connected: root.aa-connected;
                     active: root.active-view == 0;
+                    transition-mode: root.aa-video-transition-mode;
                     touch-event(x, y, k) => {
                         root.touch-event(x, y, k);
                     }
@@ -77,13 +93,28 @@ export component AppWindow inherits Window {
             ViewSlot {
                 active: root.active-view == 1;
                 slide: 32px;
+                mode: root.transition-mode;
 
                 SettingsView {
                     width: 100%;
                     height: 100%;
                     aa-dpi <=> root.aa-dpi;
+                    aa-min-dpi <=> root.aa-min-dpi;
+                    aa-max-dpi <=> root.aa-max-dpi;
                     aa-dpi-changed(v) => {
                         root.aa-dpi-changed(v);
+                    }
+                    transition-mode <=> root.transition-mode;
+                    transition-changed(v) => {
+                        root.transition-changed(v);
+                    }
+                    aa-video-transition-mode <=> root.aa-video-transition-mode;
+                    aa-video-transition-changed(v) => {
+                        root.aa-video-transition-changed(v);
+                    }
+                    aa-wireless-enabled <=> root.aa-wireless-enabled;
+                    aa-wireless-changed(on) => {
+                        root.aa-wireless-changed(on);
                     }
                 }
             }

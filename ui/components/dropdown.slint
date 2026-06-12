@@ -1,0 +1,81 @@
+import { Theme } from "../theme.slint";
+
+// NERV-styled dropdown selector. Shows the current option and opens a popup
+// list of choices. Emits `selected(index)` when a new option is picked.
+export component Dropdown inherits Rectangle {
+    in property <[string]> options;
+    in-out property <int> current-index: 0;
+    callback selected(int);
+
+    height: 36px;
+    min-width: 160px;
+    background: Theme.panel-btn;
+    border-width: 1px;
+    border-color: Theme.red-dim;
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 8px;
+
+        Text {
+            text: (root.current-index >= 0 && root.current-index < root.options.length)
+                ? root.options[root.current-index] : "";
+            color: Theme.text;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        Text {
+            text: "▾";
+            color: Theme.text-dim;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+    }
+
+    TouchArea {
+        clicked => {
+            popup.show();
+        }
+    }
+
+    popup := PopupWindow {
+        x: 0;
+        y: parent.height + 2px;
+        width: root.width;
+
+        Rectangle {
+            background: Theme.panel;
+            border-width: 1px;
+            border-color: Theme.red-dim;
+
+            VerticalLayout {
+                for opt[idx] in root.options : Rectangle {
+                    height: 34px;
+                    background: idx == root.current-index ? Theme.red-dim : transparent;
+
+                    Text {
+                        x: 12px;
+                        text: opt;
+                        color: idx == root.current-index ? Theme.text : Theme.text-dim;
+                        font-size: 13px;
+                        font-weight: 600;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => {
+                            root.current-index = idx;
+                            root.selected(idx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

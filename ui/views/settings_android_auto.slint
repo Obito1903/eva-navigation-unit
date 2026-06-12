@@ -1,4 +1,5 @@
 import { Theme } from "../theme.slint";
+import { Toggle } from "../components/toggle.slint";
 
 // A single clean capsule bar (MAGI "toxicity level" style).
 component CapsuleBar inherits Rectangle {
@@ -77,9 +78,16 @@ component CapsuleBarSlider inherits Rectangle {
 export component SettingsAndroidAutoTab inherits Rectangle {
     background: transparent;
 
-    // DPI value exposed to parent; range 80–640, default 160
+    // DPI value exposed to parent; bounds are configurable, default 160
     in-out property <int> dpi: 160;
+    // Selectable DPI bounds (configurable via Rust); defaults match prior 80–640.
+    in-out property <int> min-dpi: 80;
+    in-out property <int> max-dpi: 640;
     callback dpi-changed(int);
+
+    // Wireless Android Auto enable/disable.
+    in-out property <bool> wireless-enabled: true;
+    callback wireless-changed(bool);
 
     VerticalLayout {
         alignment: start;
@@ -138,9 +146,9 @@ export component SettingsAndroidAutoTab inherits Rectangle {
                 }
 
                 dpi-slider := CapsuleBarSlider {
-                    value: (root.dpi - 80) / (640 - 80);
+                    value: (root.dpi - root.min-dpi) / (root.max-dpi - root.min-dpi);
                     value-changed(v) => {
-                        root.dpi = clamp(Math.round(80 + v * (640 - 80)), 80, 640);
+                        root.dpi = clamp(Math.round(root.min-dpi + v * (root.max-dpi - root.min-dpi)), root.min-dpi, root.max-dpi);
                         root.dpi-changed(root.dpi);
                     }
                 }
@@ -148,15 +156,48 @@ export component SettingsAndroidAutoTab inherits Rectangle {
                 // Min/Max labels
                 HorizontalLayout {
                     Text {
-                        text: "80";
+                        text: root.min-dpi;
                         color: Theme.text-mute;
                         font-size: 11px;
                     }
                     Rectangle { horizontal-stretch: 1; }
                     Text {
-                        text: "640";
+                        text: root.max-dpi;
                         color: Theme.text-mute;
                         font-size: 11px;
+                    }
+                }
+            }
+        }
+
+        // ── Connectivity ──────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "CONNECTIVITY";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "WIRELESS ANDROID AUTO";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    checked <=> root.wireless-enabled;
+                    toggled(on) => {
+                        root.wireless-changed(on);
                     }
                 }
             }

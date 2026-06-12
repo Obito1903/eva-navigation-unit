@@ -1,6 +1,7 @@
 import { Theme } from "../theme.slint";
 import { HudPanel } from "../components/hud_panel.slint";
 import { GlowText } from "../components/glow_text.slint";
+import { ViewSlot } from "../components/view_slot.slint";
 
 // Android Auto video view with a "locked terminal" overlay shown until the
 // stream connects. Video and overlay crossfade on connect/disconnect.
@@ -8,16 +9,23 @@ export component AndroidAutoView inherits Rectangle {
     in property <image> video-frame;
     in property <bool> connected;
     in property <bool> active;
+    // View transition mode for video start/stop: 0 = CRT | 1 = FADE | 2 = SLIDE
+    in property <int> transition-mode: 0;
     callback touch-event(float, float, int);
 
-    // Video frame display — fades in once Android Auto connects.
-    Image {
-        width: 100%;
-        height: 100%;
-        source: root.video-frame;
-        image-fit: fill;
-        opacity: root.connected ? 1.0 : 0.0;
-        animate opacity { duration: Theme.fade-anim; easing: ease-in-out; }
+    // Video frame display — transitions in once Android Auto connects, using
+    // the selected start/stop transition (CRT / fade / slide).
+    ViewSlot {
+        active: root.connected;
+        slide: 32px;
+        mode: root.transition-mode;
+
+        Image {
+            width: 100%;
+            height: 100%;
+            source: root.video-frame;
+            image-fit: fill;
+        }
     }
 
     // "Locked terminal" overlay shown when not yet connected; crossfades out.

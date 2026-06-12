@@ -1,0 +1,91 @@
+import { Theme } from "../theme.slint";
+import { Dropdown } from "../components/dropdown.slint";
+
+// UI category settings tab.
+export component SettingsUiTab inherits Rectangle {
+    background: transparent;
+
+    // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
+    in-out property <int> transition-mode: 0;
+    callback transition-changed(int);
+
+    // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
+    in-out property <int> aa-video-transition-mode: 1;
+    callback aa-video-transition-changed(int);
+
+    VerticalLayout {
+        alignment: start;
+        padding: 24px;
+        spacing: 20px;
+
+        Text {
+            text: "UI";
+            color: Theme.text;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 3px;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.red-dim;
+        }
+
+        // ── Transitions ───────────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "TRANSITIONS";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "VIEW TRANSITION";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 200px;
+                    options: ["CRT", "FADE", "SLIDE"];
+                    current-index <=> root.transition-mode;
+                    selected(i) => {
+                        root.transition-changed(i);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "AA VIDEO TRANSITION";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 200px;
+                    options: ["CRT", "FADE", "SLIDE"];
+                    current-index <=> root.aa-video-transition-mode;
+                    selected(i) => {
+                        root.aa-video-transition-changed(i);
+                    }
+                }
+            }
+        }
+    }
+}

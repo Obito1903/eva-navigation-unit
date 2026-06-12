@@ -1,16 +1,70 @@
 import { Theme } from "../theme.slint";
 
-// Wraps a view with the standard slide + crossfade transition.
-// `slide` is the horizontal offset applied while the view is inactive.
+// Wraps a view with one of three power/switch transitions, selectable via `mode`:
+//   0 = CRT   — old-TV power on/off (squeeze to scanline, collapse to dot, phosphor flash)
+//   1 = FADE  — simple opacity crossfade
+//   2 = SLIDE — horizontal slide + crossfade
+//
+// `slide` is the horizontal offset applied while inactive (SLIDE mode only).
 export component ViewSlot inherits Rectangle {
     in property <bool> active;
     in property <length> slide: -32px;
+    in property <int> mode: 0;   // 0 = CRT | 1 = FADE | 2 = SLIDE
 
     width: 100%;
     height: 100%;
-    opacity: root.active ? 1.0 : 0.0;
-    x: root.active ? 0px : root.slide;
-    animate opacity, x { duration: Theme.view-anim; easing: ease-in-out; }
+    clip: true;
 
-    @children
+    // CRT "tube" envelope — in CRT mode its width/height are driven in two
+    // staggered phases so one axis collapses/expands before the other. In the
+    // other modes it stays full-size and only opacity / x are animated.
+    crt := Rectangle {
+        width: (root.mode == 0 && !root.active) ? 2px : parent.width;
+        height: (root.mode == 0 && !root.active) ? 2px : parent.height;
+        x: (parent.width - self.width) / 2 + ((root.mode == 2 && !root.active) ? root.slide : 0px);
+        y: (parent.height - self.height) / 2;
+        clip: true;
+        opacity: root.active ? 1.0 : 0.0;
+
+        // Horizontal sweep: expands first on power-on, collapses last on power-off.
+        animate width {
+            duration: Theme.crt-sweep;
+            delay: root.active ? 0ms : Theme.crt-gap;
+            easing: ease-in-out;
+        }
+        // Vertical unfold: expands last on power-on, collapses first on power-off.
+        animate height {
+            duration: Theme.crt-sweep;
+            delay: root.active ? Theme.crt-gap : 0ms;
+            easing: ease-in-out;
+        }
+        // Horizontal slide (SLIDE mode).
+        animate x {
+            duration: Theme.view-anim;
+            easing: ease-in-out;
+        }
+        // CRT: tube stays lit through the sweep, then the phosphor dies out.
+        // FADE/SLIDE: straightforward crossfade.
+        animate opacity {
+            duration: root.mode == 0 ? Theme.crt-flash : (root.mode == 1 ? Theme.fade-anim : Theme.view-anim);
+            delay: (root.mode == 0 && !root.active) ? Theme.crt-gap + Theme.crt-sweep : 0ms;
+            easing: ease-in-out;
+        }
+
+        @children
+
+        // Phosphor flash (CRT mode only) — a white wash that blooms as the image
+        // pinches down to the scanline/dot and decays as the picture settles.
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: (root.mode == 0 && !root.active) ? 0.85 : 0.0;
+            animate opacity {
+                duration: Theme.crt-flash;
+                delay: (root.mode == 0 && !root.active) ? Theme.crt-sweep - 10ms : 0ms;
+                easing: ease-out;
+            }
+        }
+    }
 }

@@ -1,0 +1,21 @@
+import { Theme } from "../theme.slint";
+
+// A bordered HUD frame with a configurable inset.
+// Child elements are placed inside the inner bordered area.
+export component HudPanel inherits Rectangle {
+    in property <length> inset-x: 48px;
+    in property <length> inset-y: 36px;
+    background: transparent;
+
+    Rectangle {
+        x: root.inset-x;
+        y: root.inset-y;
+        width: parent.width - root.inset-x * 2;
+        height: parent.height - root.inset-y * 2;
+        background: transparent;
+        border-width: 1px;
+        border-color: Theme.red-dim;
+
+        @children
+    }
+}

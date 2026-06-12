@@ -1,0 +1,66 @@
+import { Theme } from "../theme.slint";
+import { NavButton } from "nav_button.slint";
+
+// One navigation entry. Add views by appending items in the parent.
+export struct NavItem {
+    icon: string,
+    label: string,
+}
+
+// Left navigation rail. Driven by a model so adding a view is a one-line change.
+export component Sidebar inherits Rectangle {
+    in property <int> active-view;
+    in property <[NavItem]> items;
+    callback nav-to(int);
+
+    width: 96px;
+    background: Theme.panel;
+
+    // thin red rail on the inner edge
+    Rectangle {
+        x: parent.width - 1px;
+        width: 1px;
+        background: Theme.red-dim;
+    }
+
+    VerticalLayout {
+        alignment: start;
+        padding: 10px;
+        spacing: 10px;
+
+        // NERV-style header glyph
+        Rectangle {
+            height: 40px;
+            Text {
+                text: "NERV";
+                color: Theme.red;
+                font-size: 16px;
+                font-weight: 800;
+                letter-spacing: 2px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        for item[idx] in root.items: NavButton {
+            icon: item.icon;
+            label: item.label;
+            active: root.active-view == idx;
+            clicked => {
+                root.nav-to(idx);
+            }
+        }
+
+        // vertical katakana accent: ネルフ ・ 中央教義
+        Rectangle {
+            vertical-stretch: 1;
+            Text {
+                text: "ネ\nル\nフ\n・\n中\n央\n教\n義";
+                color: Theme.red-dim;
+                font-size: 12px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}

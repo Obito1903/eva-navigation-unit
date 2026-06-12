@@ -1,0 +1,33 @@
+import { Theme } from "../theme.slint";
+import { HudPanel } from "../components/hud_panel.slint";
+
+// System / settings view placeholder.
+export component SettingsView inherits Rectangle {
+    background: Theme.bg;
+
+    HudPanel {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 14px;
+
+            Text {
+                text: "SYSTEM CONFIG";
+                color: Theme.red;
+                font-size: 32px;
+                font-weight: 800;
+                letter-spacing: 4px;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: "MAGI · STANDBY";
+                color: Theme.red-dim;
+                font-size: 14px;
+                letter-spacing: 3px;
+                horizontal-alignment: center;
+            }
+        }
+    }
+}

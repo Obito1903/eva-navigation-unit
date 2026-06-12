@@ -1,0 +1,16 @@
+import { Theme } from "../theme.slint";
+
+// Wraps a view with the standard slide + crossfade transition.
+// `slide` is the horizontal offset applied while the view is inactive.
+export component ViewSlot inherits Rectangle {
+    in property <bool> active;
+    in property <length> slide: -32px;
+
+    width: 100%;
+    height: 100%;
+    opacity: root.active ? 1.0 : 0.0;
+    x: root.active ? 0px : root.slide;
+    animate opacity, x { duration: Theme.view-anim; easing: ease-in-out; }
+
+    @children
+}

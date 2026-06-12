@@ -19,7 +19,13 @@ export component AppWindow inherits Window {
     title: "a310";
     preferred-width: 1280px;
     preferred-height: 720px;
-    background: Theme.bg;
+    // Transparent when the wireframe-sphere underlay is on, so the GL
+    // background (rendered behind all Slint content) shows through. When off,
+    // fall back to the solid theme background.
+    background: root.gfx-bg-enabled ? transparent : Theme.bg;
+
+    // Enables the rotating wireframe-sphere GL underlay (see src/gfx.rs).
+    in-out property <bool> gfx-bg-enabled: true;
 
     // Active color theme: 0 = NERV-HQ | 1 = MATRIX. Drives the global palette.
     // The global `Theme.theme-id` is updated from Rust (startup + on change).
@@ -92,7 +98,7 @@ export component AppWindow inherits Window {
         // ── Content area ──────────────────────────────────────────────────
         Rectangle {
             horizontal-stretch: 1;
-            background: Theme.bg;
+            background: root.gfx-bg-enabled ? transparent : Theme.bg;
             clip: true;
 
             // View 0 — Android Auto (slides in from the left)

@@ -22,6 +22,7 @@
 mod audio;
 mod config;
 mod container;
+mod gfx;
 mod messages;
 mod nmrs_extensions;
 mod protocol;
@@ -47,6 +48,14 @@ fn main() -> Result<(), slint::PlatformError> {
     );
     log::info!("Wireless Android Auto: {}", cfg.wireless);
 
+    // Require an OpenGL(-ES) renderer so the wireframe-sphere underlay's
+    // rendering notifier (which needs `GraphicsAPI::NativeOpenGL`) always
+    // fires. A silent software-renderer fallback becomes a hard, visible
+    // failure here instead of a missing 3D background.
+    slint::BackendSelector::new()
+        .require_opengl_es()
+        .select()?;
+
     let setup = android_auto::setup();
 
     let window = AppWindow::new()?;
@@ -65,5 +74,6 @@ fn main() -> Result<(), slint::PlatformError> {
     Theme::get(&window).set_theme_id(cfg.theme);
 
     ui::wire(&window, setup, cfg);
+    gfx::install(&window);
     window.run()
 }

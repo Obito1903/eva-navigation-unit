@@ -18,7 +18,10 @@ export component AndroidAutoView inherits Rectangle {
     in property <float> transition-speed: 1.0;
     callback touch-event(float, float, int);
 
-    background: Theme.bg;
+    // Transparent so the GL wireframe-sphere underlay shows behind the
+    // "locked terminal" home screen (the window/content backgrounds gate the
+    // actual fallback color).
+    background: transparent;
 
     // "Locked terminal" overlay shown when not yet connected. Sits *behind* the
     // video so the video's start/stop transition (CRT/fade/slide) is what plays
@@ -26,7 +29,7 @@ export component AndroidAutoView inherits Rectangle {
     Rectangle {
         width: 100%;
         height: 100%;
-        background: Theme.bg;
+        background: transparent;
         opacity: (root.connected && root.video-ready) ? 0.0 : 1.0;
         visible: self.opacity > 0.0;
         animate opacity { duration: Theme.fade-anim; easing: ease-in-out; }

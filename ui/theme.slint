@@ -1,26 +1,36 @@
-// Shared NERV / "Central Dogma" palette and animation timings.
+// Shared palette and animation timings.
 // Imported by every component/view so styling stays in one place.
+//
+// Multiple color themes are supported, selected via `theme-id`:
+//   0 = NERV-HQ  — red wireframe, amber-orange text (default)
+//   1 = MATRIX   — green wireframe/background, white-green text
 export global Theme {
-    out property <color> red: #e6231b;
-    out property <color> red-dim: #6b1410;
-    out property <color> red-mute: #7a2620;
-    out property <color> bg: #000000;
-    out property <color> panel: #0a0204;
-    out property <color> panel-btn: #120305;
+    // Active theme: 0 = NERV-HQ | 1 = MATRIX. Bound from Rust/UI.
+    in-out property <int> theme-id: 0;
+
+    // Accent / wireframe colors (named `red*` for historical reasons).
+    out property <color> red: theme-id == 1 ? #00ff41 : #e6231b;
+    out property <color> red-dim: theme-id == 1 ? #0c4d1c : #6b1410;
+    out property <color> red-mute: theme-id == 1 ? #1c6e30 : #7a2620;
+    out property <color> bg: theme-id == 1 ? #001505 : #000000;
+    out property <color> panel: theme-id == 1 ? #02160a : #0a0204;
+    out property <color> panel-btn: theme-id == 1 ? #04220e : #120305;
 
     // Bar-level capsule colors
-    out property <color> bar-bright: #70b8ff;
-    out property <color> bar-mid: #3a7cdc;
-    out property <color> bar-dim: #1a2540;
-    out property <color> bar-cap: #9aacbe;
-    out property <color> bar-cap-dim: #3a4858;
-    out property <color> bar-bg: #0c1220;
+    out property <color> bar-bright: theme-id == 1 ? #5cff7a : #70b8ff;
+    out property <color> bar-mid: theme-id == 1 ? #2ed14a : #3a7cdc;
+    out property <color> bar-dim: theme-id == 1 ? #133d1c : #1a2540;
+    out property <color> bar-cap: theme-id == 1 ? #b8ffc4 : #9aacbe;
+    out property <color> bar-cap-dim: theme-id == 1 ? #3a6848 : #3a4858;
+    out property <color> bar-bg: theme-id == 1 ? #061a0c : #0c1220;
 
-    // Text colors — warm amber-orange (Gunbuster display aesthetic)
-    out property <color> text: #FFA030;
-    out property <color> text-dim: #C87018;
-    out property <color> text-mute: #7A4510;
-    out property <color> glow: #FFA03066;  // 40% alpha for bloom layers
+    // Text colors
+    //   NERV-HQ: warm amber-orange (Gunbuster display aesthetic)
+    //   MATRIX:  white-green phosphor
+    out property <color> text: theme-id == 1 ? #d6ffdc : #FFA030;
+    out property <color> text-dim: theme-id == 1 ? #5cff7a : #C87018;
+    out property <color> text-mute: theme-id == 1 ? #2c8a40 : #7A4510;
+    out property <color> glow: theme-id == 1 ? #5cff7a66 : #FFA03066;  // 40% alpha for bloom layers
 
     // Animation timings
     out property <duration> view-anim: 250ms;

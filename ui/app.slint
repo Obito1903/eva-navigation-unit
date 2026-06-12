@@ -44,6 +44,10 @@ export component AppWindow inherits Window {
     in-out property <int> aa-resolution: 720;
     callback aa-resolution-changed(int);
 
+    // Android Auto video frame rate (30 or 60 fps)
+    in-out property <int> aa-fps: 30;
+    callback aa-fps-changed(int);
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -144,6 +148,10 @@ export component AppWindow inherits Window {
                     aa-resolution <=> root.aa-resolution;
                     aa-resolution-changed(v) => {
                         root.aa-resolution-changed(v);
+                    }
+                    aa-fps <=> root.aa-fps;
+                    aa-fps-changed(v) => {
+                        root.aa-fps-changed(v);
                     }
                 }
             }

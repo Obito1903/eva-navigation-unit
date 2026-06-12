@@ -32,6 +32,8 @@ pub(crate) const MAX_TRANSITION_SPEED: f32 = 3.0;
 pub(crate) const DEFAULT_WIRELESS: bool = true;
 /// Default Android Auto video resolution (vertical lines: 720 or 1080).
 pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
+/// Default Android Auto video frame rate (30 or 60 fps).
+pub(crate) const DEFAULT_FPS: i32 = 30;
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -62,6 +64,10 @@ struct Cli {
     #[arg(long, env = "EVA_RESOLUTION")]
     resolution: Option<i32>,
 
+    /// Android Auto video frame rate (30 or 60).
+    #[arg(long, env = "EVA_FPS")]
+    fps: Option<i32>,
+
     /// View transition mode (0 = CRT | 1 = FADE | 2 = SLIDE).
     #[arg(long, env = "EVA_TRANSITION_MODE")]
     transition_mode: Option<i32>,
@@ -87,6 +93,7 @@ struct FileConfig {
     dpi: Option<i32>,
     wireless: Option<bool>,
     resolution: Option<i32>,
+    fps: Option<i32>,
     transition_mode: Option<i32>,
     aa_video_transition_mode: Option<i32>,
     transition_speed: Option<f32>,
@@ -101,6 +108,7 @@ pub(crate) struct Config {
     pub(crate) dpi: i32,
     pub(crate) wireless: bool,
     pub(crate) resolution: i32,
+    pub(crate) fps: i32,
     pub(crate) transition_mode: i32,
     pub(crate) aa_video_transition_mode: i32,
     pub(crate) transition_speed: f32,
@@ -126,6 +134,7 @@ impl Config {
             .resolution
             .or(file.resolution)
             .unwrap_or(DEFAULT_RESOLUTION);
+        let fps = cli.fps.or(file.fps).unwrap_or(DEFAULT_FPS);
         let transition_mode = cli
             .transition_mode
             .or(file.transition_mode)
@@ -149,6 +158,7 @@ impl Config {
             dpi,
             wireless,
             resolution,
+            fps,
             transition_mode,
             aa_video_transition_mode,
             transition_speed,
@@ -166,6 +176,7 @@ impl Config {
         dpi: i32,
         wireless: bool,
         resolution: i32,
+        fps: i32,
         transition_mode: i32,
         aa_video_transition_mode: i32,
         transition_speed: f32,
@@ -193,6 +204,7 @@ impl Config {
             } else {
                 480
             },
+            fps: if fps >= 60 { 60 } else { 30 },
             transition_mode: transition_mode.clamp(0, 2),
             aa_video_transition_mode: aa_video_transition_mode.clamp(0, 2),
             transition_speed: transition_speed.clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
@@ -210,6 +222,7 @@ impl Config {
             dpi: Some(self.dpi),
             wireless: Some(self.wireless),
             resolution: Some(self.resolution),
+            fps: Some(self.fps),
             transition_mode: Some(self.transition_mode),
             aa_video_transition_mode: Some(self.aa_video_transition_mode),
             transition_speed: Some(self.transition_speed),

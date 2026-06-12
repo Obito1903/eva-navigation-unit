@@ -46,6 +46,7 @@ pub(crate) fn wire(
     // (re)connection. Seeded from config + a 16:9 fallback screen size.
     let video = Arc::new(VideoSettings {
         resolution: AtomicI32::new(cfg.borrow().resolution),
+        fps: AtomicI32::new(cfg.borrow().fps),
         screen_w: AtomicU32::new(1280),
         screen_h: AtomicU32::new(720),
     });
@@ -74,6 +75,19 @@ pub(crate) fn wire(
             video.resolution.store(resolution, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.resolution = resolution;
+            cfg.save();
+        });
+    }
+
+    // ── Frame rate: Settings UI → config + worker ─────────────────────────
+    {
+        let video = video.clone();
+        let cfg = cfg.clone();
+        window.on_aa_fps_changed(move |fps| {
+            log::info!("Android Auto frame rate set to {fps}fps (applies on next connection)");
+            video.fps.store(fps, Ordering::Relaxed);
+            let mut cfg = cfg.borrow_mut();
+            cfg.fps = fps;
             cfg.save();
         });
     }

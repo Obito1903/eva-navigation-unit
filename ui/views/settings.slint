@@ -25,6 +25,10 @@ export component SettingsView inherits Rectangle {
     in-out property <int> aa-resolution: 720;
     callback aa-resolution-changed(int);
 
+    // Android Auto video frame rate (30 or 60 fps)
+    in-out property <int> aa-fps: 30;
+    callback aa-fps-changed(int);
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -136,6 +140,10 @@ export component SettingsView inherits Rectangle {
                     resolution <=> root.aa-resolution;
                     resolution-changed(v) => {
                         root.aa-resolution-changed(v);
+                    }
+                    fps <=> root.aa-fps;
+                    fps-changed(v) => {
+                        root.aa-fps-changed(v);
                     }
                 }
 

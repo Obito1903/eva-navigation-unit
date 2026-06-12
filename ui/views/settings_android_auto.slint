@@ -22,6 +22,10 @@ export component SettingsAndroidAutoTab inherits Rectangle {
     in-out property <int> resolution: 720;
     callback resolution-changed(int);
 
+    // Android Auto video frame rate (30 or 60 fps).
+    in-out property <int> fps: 30;
+    callback fps-changed(int);
+
     VerticalLayout {
         alignment: start;
         padding: 24px;
@@ -122,6 +126,30 @@ export component SettingsAndroidAutoTab inherits Rectangle {
                     selected(i) => {
                         root.resolution = i == 2 ? 1080 : (i == 1 ? 720 : 480);
                         root.resolution-changed(root.resolution);
+                    }
+                }
+            }
+
+            // Frame rate control
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "FRAME RATE";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 200px;
+                    options: ["30 FPS", "60 FPS"];
+                    current-index: root.fps >= 60 ? 1 : 0;
+                    selected(i) => {
+                        root.fps = i == 1 ? 60 : 30;
+                        root.fps-changed(root.fps);
                     }
                 }
             }

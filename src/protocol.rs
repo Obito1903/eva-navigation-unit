@@ -330,8 +330,8 @@ impl android_auto::AndroidAutoMainTrait for AndroidAuto {
 // ── Constructor & start ─────────────────────────────────────────────────────
 
 /// Build a [`VideoConfiguration`] for the requested vertical resolution
-/// (`480`, `720` or `1080`), sizing the active picture to match the head
-/// unit's screen aspect ratio via margins.
+/// (`480`, `720` or `1080`) and frame rate (`30` or `60`), sizing the active
+/// picture to match the head unit's screen aspect ratio via margins.
 ///
 /// Android Auto encodes at fixed 16:9 base resolutions (480p = 800×480,
 /// 720p = 1280×720, 1080p = 1920×1080). When the screen is not 16:9 we keep
@@ -339,6 +339,7 @@ impl android_auto::AndroidAutoMainTrait for AndroidAuto {
 /// `screen_w / screen_h`.
 pub(crate) fn build_video_configuration(
     resolution: i32,
+    fps: i32,
     screen_w: u32,
     screen_h: u32,
     dpi: u16,
@@ -349,6 +350,12 @@ pub(crate) fn build_video_configuration(
         (android_auto::Wifi::video_resolution::Enum::_720p, 1280i32, 720i32)
     } else {
         (android_auto::Wifi::video_resolution::Enum::_480p, 800i32, 480i32)
+    };
+
+    let fps_enum = if fps >= 60 {
+        android_auto::Wifi::video_fps::Enum::_60
+    } else {
+        android_auto::Wifi::video_fps::Enum::_30
     };
 
     // Guard against a degenerate/zero screen size; fall back to the 16:9 base.
@@ -376,13 +383,14 @@ pub(crate) fn build_video_configuration(
     } else {
         480
     };
+    let fps_label = if fps >= 60 { 60 } else { 30 };
     log::info!(
-        "Android Auto video: {res_label}p base {base_w}x{base_h}, screen {screen_w}x{screen_h}, margins {margin_width}x{margin_height}"
+        "Android Auto video: {res_label}p@{fps_label} base {base_w}x{base_h}, screen {screen_w}x{screen_h}, margins {margin_width}x{margin_height}"
     );
 
     VideoConfiguration {
         resolution: res_enum,
-        fps: android_auto::Wifi::video_fps::Enum::_30,
+        fps: fps_enum,
         dpi,
         margin_width,
         margin_height,

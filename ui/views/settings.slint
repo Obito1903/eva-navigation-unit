@@ -55,6 +55,10 @@ export component SettingsView inherits Rectangle {
     in-out property <float> aa-video-transition-speed: 1.0;
     callback aa-video-transition-speed-changed(float);
 
+    // Whether the window is shown in fullscreen mode.
+    in-out property <bool> fullscreen: false;
+    callback fullscreen-changed(bool);
+
     HudPanel {
         width: 100%;
         height: 100%;
@@ -185,6 +189,10 @@ export component SettingsView inherits Rectangle {
                     aa-video-transition-speed <=> root.aa-video-transition-speed;
                     aa-video-transition-speed-changed(v) => {
                         root.aa-video-transition-speed-changed(v);
+                    }
+                    fullscreen <=> root.fullscreen;
+                    fullscreen-changed(on) => {
+                        root.fullscreen-changed(on);
                     }
                 }
             }

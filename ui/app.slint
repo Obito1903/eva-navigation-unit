@@ -19,6 +19,7 @@ export component AppWindow inherits Window {
     title: "a310";
     preferred-width: 1280px;
     preferred-height: 720px;
+    full-screen <=> root.fullscreen;
     // Transparent when the wireframe-sphere underlay is on, so the GL
     // background (rendered behind all Slint content) shows through. When off,
     // fall back to the solid theme background.
@@ -26,6 +27,10 @@ export component AppWindow inherits Window {
 
     // Enables the rotating wireframe-sphere GL underlay (see src/gfx.rs).
     in-out property <bool> gfx-bg-enabled: true;
+
+    // Whether the window is shown in fullscreen mode.
+    in-out property <bool> fullscreen: false;
+    callback fullscreen-changed(bool);
 
     // Selects the wireframe model drawn by the GL underlay:
     // 0 = sphere | 1 = cube | 2 = car.
@@ -190,6 +195,10 @@ export component AppWindow inherits Window {
                     aa-fps <=> root.aa-fps;
                     aa-fps-changed(v) => {
                         root.aa-fps-changed(v);
+                    }
+                    fullscreen <=> root.fullscreen;
+                    fullscreen-changed(on) => {
+                        root.fullscreen-changed(on);
                     }
                 }
             }

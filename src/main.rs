@@ -73,6 +73,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // Apply the persisted theme to the global palette at startup.
     Theme::get(&window).set_theme_id(cfg.theme);
     window.set_gfx_model(cfg.gfx_model);
+    window.set_fullscreen(cfg.fullscreen);
 
     ui::wire(&window, setup, cfg);
     gfx::install(&window);

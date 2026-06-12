@@ -1,6 +1,7 @@
 import { Theme } from "../theme.slint";
 import { Dropdown } from "../components/dropdown.slint";
 import { CapsuleBarSlider } from "../components/capsule_bar_slider.slint";
+import { Toggle } from "../components/toggle.slint";
 
 // UI category settings tab.
 export component SettingsUiTab inherits Rectangle {
@@ -31,6 +32,10 @@ export component SettingsUiTab inherits Rectangle {
     // Selectable speed range (multiplier).
     property <float> min-speed: 0.25;
     property <float> max-speed: 3.0;
+
+    // Fullscreen window mode.
+    in-out property <bool> fullscreen: false;
+    callback fullscreen-changed(bool);
 
     VerticalLayout {
         alignment: start;
@@ -102,6 +107,26 @@ export component SettingsUiTab inherits Rectangle {
                     current-index <=> root.gfx-model;
                     selected(i) => {
                         root.gfx-model-changed(i);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "FULLSCREEN";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    checked <=> root.fullscreen;
+                    toggled(on) => {
+                        root.fullscreen-changed(on);
                     }
                 }
             }

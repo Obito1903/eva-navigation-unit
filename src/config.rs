@@ -38,6 +38,8 @@ pub(crate) const DEFAULT_FPS: i32 = 30;
 pub(crate) const DEFAULT_THEME: i32 = 0;
 /// Default GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
 pub(crate) const DEFAULT_GFX_MODEL: i32 = 0;
+/// Whether the window starts in fullscreen mode by default.
+pub(crate) const DEFAULT_FULLSCREEN: bool = false;
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -95,6 +97,10 @@ struct Cli {
     /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
     #[arg(long, env = "EVA_GFX_MODEL")]
     gfx_model: Option<i32>,
+
+    /// Display the window in fullscreen mode.
+    #[arg(long, env = "EVA_FULLSCREEN")]
+    fullscreen: Option<bool>,
 }
 
 /// Shape of the optional TOML configuration file.
@@ -112,6 +118,7 @@ struct FileConfig {
     aa_video_transition_speed: Option<f32>,
     theme: Option<i32>,
     gfx_model: Option<i32>,
+    fullscreen: Option<bool>,
 }
 
 /// Fully resolved runtime configuration.
@@ -131,6 +138,8 @@ pub(crate) struct Config {
     pub(crate) theme: i32,
     /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car).
     pub(crate) gfx_model: i32,
+    /// Whether the window is shown in fullscreen mode.
+    pub(crate) fullscreen: bool,
     /// Path the configuration is loaded from and saved back to.
     pub(crate) path: PathBuf,
 }
@@ -172,6 +181,10 @@ impl Config {
 
         let theme = cli.theme.or(file.theme).unwrap_or(DEFAULT_THEME);
         let gfx_model = cli.gfx_model.or(file.gfx_model).unwrap_or(DEFAULT_GFX_MODEL);
+        let fullscreen = cli
+            .fullscreen
+            .or(file.fullscreen)
+            .unwrap_or(DEFAULT_FULLSCREEN);
 
         Self::sanitised(
             min_dpi,
@@ -186,6 +199,7 @@ impl Config {
             aa_video_transition_speed,
             theme,
             gfx_model,
+            fullscreen,
             path,
         )
     }
@@ -206,6 +220,7 @@ impl Config {
         aa_video_transition_speed: f32,
         theme: i32,
         gfx_model: i32,
+        fullscreen: bool,
         path: PathBuf,
     ) -> Self {
         let mut min_dpi = min_dpi.max(1);
@@ -237,6 +252,7 @@ impl Config {
                 .clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
             theme: theme.max(0),
             gfx_model: gfx_model.clamp(0, 3),
+            fullscreen,
             path,
         }
     }
@@ -256,6 +272,7 @@ impl Config {
             aa_video_transition_speed: Some(self.aa_video_transition_speed),
             theme: Some(self.theme),
             gfx_model: Some(self.gfx_model),
+            fullscreen: Some(self.fullscreen),
         };
         match toml::to_string_pretty(&file) {
             Ok(contents) => {

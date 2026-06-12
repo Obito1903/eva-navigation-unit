@@ -164,6 +164,17 @@ pub(crate) fn wire(
         });
     }
 
+    // ── Fullscreen: Settings UI → config ──────────────────────────────────
+    {
+        let cfg = cfg.clone();
+        window.on_fullscreen_changed(move |enabled| {
+            log::info!("Fullscreen {}", if enabled { "enabled" } else { "disabled" });
+            let mut cfg = cfg.borrow_mut();
+            cfg.fullscreen = enabled;
+            cfg.save();
+        });
+    }
+
     // ── Start android-auto in background ──────────────────────────────────
     let mut container = AndroidAutoContainer::new(setup, wireless.clone(), video.clone());
 

@@ -36,7 +36,7 @@ pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
 pub(crate) const DEFAULT_FPS: i32 = 30;
 /// Default color theme (0 = NERV-HQ | 1 = MATRIX).
 pub(crate) const DEFAULT_THEME: i32 = 0;
-/// Default GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car).
+/// Default GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
 pub(crate) const DEFAULT_GFX_MODEL: i32 = 0;
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
@@ -92,7 +92,7 @@ struct Cli {
     #[arg(long, env = "EVA_THEME")]
     theme: Option<i32>,
 
-    /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car).
+    /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
     #[arg(long, env = "EVA_GFX_MODEL")]
     gfx_model: Option<i32>,
 }
@@ -236,7 +236,7 @@ impl Config {
             aa_video_transition_speed: aa_video_transition_speed
                 .clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
             theme: theme.max(0),
-            gfx_model: gfx_model.clamp(0, 2),
+            gfx_model: gfx_model.clamp(0, 3),
             path,
         }
     }

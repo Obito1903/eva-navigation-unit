@@ -98,7 +98,7 @@ export component SettingsUiTab inherits Rectangle {
 
                 Dropdown {
                     width: 200px;
-                    options: ["SPHERE", "CUBE", "CAR"];
+                    options: ["SPHERE", "CUBE", "CAR", "SPEAKER"];
                     current-index <=> root.gfx-model;
                     selected(i) => {
                         root.gfx-model-changed(i);

@@ -696,6 +696,94 @@ fn wheel_disc(v: &mut Vec<f32>, cx: f32, cy: f32, z: f32, r: f32, seg: usize) {
     }
 }
 
+/// Build a wireframe hi-fi speaker: a tall rectangular cabinet with a recessed
+/// front baffle, a large woofer (with surround + dust cap) and a small tweeter
+/// on the front face, plus a bass-reflex port. Returned as a `GL_LINES` vertex
+/// list, centered on the origin.
+fn build_speaker_wireframe() -> Vec<f32> {
+    use std::f32::consts::PI;
+    let mut v: Vec<f32> = Vec::new();
+
+    // Cabinet: width (x) × height (y) × depth (z). Front face sits at +z.
+    let (hx, hy, hz) = (0.55_f32, 0.9_f32, 0.5_f32);
+    box_edges(&mut v, [-hx, -hy, -hz], [hx, hy, hz]);
+
+    // Recessed front baffle outline, inset from the cabinet edges.
+    let bx = hx - 0.10;
+    let by = hy - 0.10;
+    let bz = hz; // on the front face
+    let baffle = [
+        [-bx, -by],
+        [bx, -by],
+        [bx, by],
+        [-bx, by],
+    ];
+    for i in 0..baffle.len() {
+        let a = baffle[i];
+        let b = baffle[(i + 1) % baffle.len()];
+        edge(&mut v, [a[0], a[1], bz], [b[0], b[1], bz]);
+    }
+
+    // Concentric circle on the front face at `(cx, cy)`, radius `r`. A second
+    // ring slightly forward in z fakes the cone depth.
+    let mut driver = |cx: f32, cy: f32, r: f32, depth: f32, seg: usize| {
+        for s in 0..seg {
+            let a0 = 2.0 * PI * (s as f32) / (seg as f32);
+            let a1 = 2.0 * PI * ((s + 1) as f32) / (seg as f32);
+            // Outer surround on the baffle.
+            edge(
+                &mut v,
+                [cx + r * a0.cos(), cy + r * a0.sin(), bz],
+                [cx + r * a1.cos(), cy + r * a1.sin(), bz],
+            );
+            // Inner cone rim, pushed back into the cabinet.
+            let ri = r * 0.55;
+            edge(
+                &mut v,
+                [cx + ri * a0.cos(), cy + ri * a0.sin(), bz - depth],
+                [cx + ri * a1.cos(), cy + ri * a1.sin(), bz - depth],
+            );
+            // Spokes from surround to cone rim suggest the cone surface.
+            if s % 3 == 0 {
+                edge(
+                    &mut v,
+                    [cx + r * a0.cos(), cy + r * a0.sin(), bz],
+                    [cx + ri * a0.cos(), cy + ri * a0.sin(), bz - depth],
+                );
+            }
+        }
+        // Dust cap at the cone center.
+        let rc = r * 0.18;
+        for s in 0..seg {
+            let a0 = 2.0 * PI * (s as f32) / (seg as f32);
+            let a1 = 2.0 * PI * ((s + 1) as f32) / (seg as f32);
+            edge(
+                &mut v,
+                [cx + rc * a0.cos(), cy + rc * a0.sin(), bz - depth],
+                [cx + rc * a1.cos(), cy + rc * a1.sin(), bz - depth],
+            );
+        }
+    };
+
+    // Woofer (lower, large) and tweeter (upper, small).
+    driver(0.0, -0.30, 0.34, 0.14, 28);
+    driver(0.0, 0.42, 0.13, 0.06, 20);
+
+    // Bass-reflex port: a small ring near the bottom of the baffle.
+    let (px, py, pr) = (0.0_f32, -0.74_f32, 0.08_f32);
+    for s in 0..16 {
+        let a0 = 2.0 * PI * (s as f32) / 16.0;
+        let a1 = 2.0 * PI * ((s + 1) as f32) / 16.0;
+        edge(
+            &mut v,
+            [px + pr * a0.cos(), py + pr * a0.sin(), bz],
+            [px + pr * a1.cos(), py + pr * a1.sin(), bz],
+        );
+    }
+
+    v
+}
+
 /// Reinterpret an `f32` slice as bytes for `buffer_data_u8_slice`.
 fn bytemuck_cast(data: &[f32]) -> &[u8] {
     // Safety: `f32` has no padding/invalid bit patterns and `u8` has alignment

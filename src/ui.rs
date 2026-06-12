@@ -66,13 +66,28 @@ pub(crate) fn wire(
 
     // ── Start android-auto in background ──────────────────────────────────
     let mut container = AndroidAutoContainer::new(setup, wireless.clone());
-    let send_touch = container.send.clone();
+
+    // The worker is torn down and recreated on every disconnect, which makes a
+    // fresh message channel each time. Touch input must always target the
+    // *current* worker, so keep the sender in a shared cell and refresh it on
+    // restart — otherwise touches would silently go to the previous (dead)
+    // channel after the first reconnect.
+    let send_touch = Rc::new(RefCell::new(container.send.clone()));
 
     // ── Touch events: Slint UI → android-auto ─────────────────────────────
-    window.on_touch_event(move |x, y, kind| {
-        let msg = build_touch_message(x, y, kind);
-        let _ = send_touch.blocking_send(MessageToAsync::AndroidAutoMessage(msg));
-    });
+    {
+        let send_touch = send_touch.clone();
+        window.on_touch_event(move |x, y, kind| {
+            let msg = build_touch_message(x, y, kind);
+            // Never block the event loop: this runs on the UI thread, and a
+            // blocking send would freeze the whole UI if the worker isn't
+            // draining its channel (e.g. while reconnecting). Dropping the odd
+            // touch when the buffer is full is preferable to a frozen UI.
+            let _ = send_touch
+                .borrow()
+                .try_send(MessageToAsync::AndroidAutoMessage(msg));
+        });
+    }
 
     // ── Video decoder thread ──────────────────────────────────────────────
     let (video_tx, video_rx) = std::sync::mpsc::channel::<VideoCommand>();
@@ -90,6 +105,8 @@ pub(crate) fn wire(
                 MessageFromAsync::ExitContainer => {
                     log::info!("Container exited — restarting");
                     container = AndroidAutoContainer::new(setup, wireless.clone());
+                    // Point touch input at the new worker's channel.
+                    *send_touch.borrow_mut() = container.send.clone();
                 }
                 MessageFromAsync::Connected => {
                     log::info!("Android Auto connected");

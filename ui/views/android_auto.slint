@@ -13,22 +13,11 @@ export component AndroidAutoView inherits Rectangle {
     in property <int> transition-mode: 0;
     callback touch-event(float, float, int);
 
-    // Video frame display — transitions in once Android Auto connects, using
-    // the selected start/stop transition (CRT / fade / slide).
-    ViewSlot {
-        active: root.connected;
-        slide: 32px;
-        mode: root.transition-mode;
+    background: Theme.bg;
 
-        Image {
-            width: 100%;
-            height: 100%;
-            source: root.video-frame;
-            image-fit: fill;
-        }
-    }
-
-    // "Locked terminal" overlay shown when not yet connected; crossfades out.
+    // "Locked terminal" overlay shown when not yet connected. Sits *behind* the
+    // video so the video's start/stop transition (CRT/fade/slide) is what plays
+    // on top; the overlay is simply revealed once the video collapses away.
     Rectangle {
         width: 100%;
         height: 100%;
@@ -98,6 +87,22 @@ export component AndroidAutoView inherits Rectangle {
                     horizontal-alignment: center;
                 }
             }
+        }
+    }
+
+    // Video frame display — transitions in once Android Auto connects, using
+    // the selected start/stop transition (CRT / fade / slide). Drawn on top of
+    // the overlay so its transition is fully visible.
+    ViewSlot {
+        active: root.connected;
+        slide: 32px;
+        mode: root.transition-mode;
+
+        Image {
+            width: 100%;
+            height: 100%;
+            source: root.video-frame;
+            image-fit: fill;
         }
     }
 

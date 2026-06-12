@@ -40,6 +40,14 @@ export component AppWindow inherits Window {
     // Updated by Rust each decoded video frame
     in-out property <image> video-frame;
 
+    // Rotating wireframe car rendered by the GL layer (src/gfx.rs) for the
+    // AUTO nav button. Updated each frame while the AUTO view is active.
+    in-out property <image> auto-icon;
+
+    // Rotating wireframe gear rendered by the GL layer (src/gfx.rs) for the
+    // SYS nav button. Updated each frame while the Settings view is active.
+    in-out property <image> settings-icon;
+
     // 0 = Android Auto  |  1 = Settings
     in-out property <int> active-view: 0;
 
@@ -90,9 +98,11 @@ export component AppWindow inherits Window {
     HorizontalLayout {
         Sidebar {
             active-view: root.active-view;
+            auto-icon: root.auto-icon;
+            settings-icon: root.settings-icon;
             items: [
-                { icon: "▶", label: "AUTO" },
-                { icon: "⚙", label: "SYS" },
+                { label: "AUTO", gl-icon: true, gl-id: 0 },
+                { label: "SYS", gl-icon: true, gl-id: 1 },
             ];
             nav-to(i) => {
                 root.nav-to(i);

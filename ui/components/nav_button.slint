@@ -1,11 +1,16 @@
 import { Theme } from "../theme.slint";
 import { GlowText } from "glow_text.slint";
+import { GlIcon } from "gl_icon.slint";
 
 // A single sidebar navigation button (icon + label) with active highlight.
 export component NavButton inherits Rectangle {
     in property <string> icon;
     in property <string> label;
     in property <bool> active;
+    // When true, render the spinning GL wireframe `gl-image` instead of `icon`.
+    in property <bool> gl-icon;
+    // Live GL-rendered icon image (used when `gl-icon` is true).
+    in property <image> gl-image;
     callback clicked;
 
     height: 76px;
@@ -14,17 +19,15 @@ export component NavButton inherits Rectangle {
     border-color: root.active ? Theme.red : Theme.red-dim;
     background: root.active ? Theme.red-dim.with-alpha(0.45) : Theme.panel-btn;
 
-    TouchArea {
-        clicked => {
-            root.clicked();
-        }
-    }
-
     VerticalLayout {
         alignment: center;
         spacing: 4px;
 
-        GlowText {
+        if root.gl-icon: GlIcon {
+            active: root.active;
+            source: root.gl-image;
+        }
+        if !root.gl-icon: GlowText {
             text: root.icon;
             text-color: root.active ? Theme.text : Theme.text-mute;
             font-size: 22px;
@@ -37,6 +40,14 @@ export component NavButton inherits Rectangle {
             font-weight: 700;
             letter-spacing: 1;
             horizontal-alignment: center;
+        }
+    }
+
+    // Declared last so it sits on top of the visual content (the full-width GL
+    // icon would otherwise cover it) and reliably receives clicks.
+    TouchArea {
+        clicked => {
+            root.clicked();
         }
     }
 }

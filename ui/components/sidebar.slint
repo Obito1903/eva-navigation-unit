@@ -3,15 +3,24 @@ import { NavButton } from "nav_button.slint";
 import { GlowText } from "glow_text.slint";
 
 // One navigation entry. Add views by appending items in the parent.
+// Set `gl-icon: true` to use a spinning GL-rendered wireframe icon (selected by
+// `gl-id`) instead of the text `icon`.
 export struct NavItem {
     icon: string,
     label: string,
+    gl-icon: bool,
+    gl-id: int,
 }
 
 // Left navigation rail. Driven by a model so adding a view is a one-line change.
 export component Sidebar inherits Rectangle {
     in property <int> active-view;
     in property <[NavItem]> items;
+    // Live GL-rendered icon images, selected per item by `gl-id`. Kept out of
+    // the `items` model so updating them each frame does not rebuild the
+    // repeater (which would destroy NavButtons mid-click).
+    in property <image> auto-icon;
+    in property <image> settings-icon;
     callback nav-to(int);
 
     width: 96px;
@@ -46,6 +55,8 @@ export component Sidebar inherits Rectangle {
         for item[idx] in root.items: NavButton {
             icon: item.icon;
             label: item.label;
+            gl-icon: item.gl-icon;
+            gl-image: item.gl-id == 1 ? root.settings-icon : root.auto-icon;
             active: root.active-view == idx;
             clicked => {
                 root.nav-to(idx);

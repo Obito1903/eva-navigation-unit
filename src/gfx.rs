@@ -20,7 +20,10 @@ use std::num::NonZeroU32;
 use std::time::Instant;
 
 use glow::HasContext;
-use slint::{ComponentHandle, Global, GraphicsAPI, RenderingState};
+use slint::{
+    BorrowedOpenGLTextureBuilder, BorrowedOpenGLTextureOrigin, ComponentHandle, Global,
+    GraphicsAPI, Image, RenderingState,
+};
 
 use crate::{AppWindow, Theme};
 
@@ -38,6 +41,16 @@ const MERIDIAN_SEG: usize = 32;
 /// centers within the content area rather than the whole window.
 const SIDEBAR_W: f32 = 96.0;
 
+/// Pixel size of the offscreen target used to render the spinning sidebar car
+/// icon. Square so the wireframe stays isotropic (no stretching); Slint scales
+/// it down into the nav button with `image-fit: contain`.
+const ICON_SIZE: u32 = 160;
+
+/// Model indices into `Underlay::models` for the spinning nav icons (must match
+/// the build order in `Underlay::new`).
+const ICON_MODEL_CAR: usize = 4;
+const ICON_MODEL_GEAR: usize = 5;
+
 /// GLSL ES 1.00 vertex shader: rotates the sphere on two axes over time and
 /// applies a simple perspective projection (aspect-corrected).
 const VERTEX_SHADER: &str = r"#version 100
@@ -45,10 +58,11 @@ attribute vec3 pos;
 uniform float u_time;
 uniform float u_aspect;
 uniform vec2 u_offset;
+uniform float u_tilt;   // 1.0 = animated X tilt; 0.0 = pure horizontal spin
 
 void main() {
-    float a = u_time * 0.45;          // spin around Y
-    float b = u_time * 0.17 + 0.5;    // slow tilt around X
+    float a = u_time * 0.45;                     // spin around Y
+    float b = (u_time * 0.17 + 0.5) * u_tilt;    // slow tilt around X (gated)
 
     mat3 ry = mat3(
         cos(a), 0.0, -sin(a),
@@ -155,6 +169,7 @@ struct Underlay {
     u_aspect: glow::UniformLocation,
     u_offset: glow::UniformLocation,
     u_color: glow::UniformLocation,
+    u_tilt: glow::UniformLocation,
     // Frost (fullscreen) pass.
     frost_program: glow::Program,
     quad_vbo: glow::Buffer,
@@ -167,6 +182,13 @@ struct Underlay {
     fbo_tex: glow::Texture,
     fbo_w: u32,
     fbo_h: u32,
+    // Offscreen target for the spinning sidebar icons. Each icon owns its own
+    // color texture (so both can be displayed simultaneously); the textures are
+    // handed to Slint as borrowed GL textures (zero-copy, no glReadPixels).
+    icon_fbo: glow::Framebuffer,
+    car_tex: glow::Texture,
+    gear_tex: glow::Texture,
+    icons_ready: bool,
 }
 
 /// Compile + link a vertex/fragment shader pair into a program, panicking with
@@ -211,6 +233,8 @@ impl Underlay {
                 build_cube_wireframe(),
                 build_car_wireframe(),
                 build_speaker_wireframe(),
+                build_car_icon_wireframe(),
+                build_gear_icon_wireframe(),
             ] {
                 let start = (vertices.len() / 3) as i32;
                 let count = (model.len() / 3) as i32;
@@ -234,6 +258,7 @@ impl Underlay {
             let u_offset =
                 gl.get_uniform_location(program, "u_offset").expect("uniform u_offset");
             let u_color = gl.get_uniform_location(program, "u_color").expect("uniform u_color");
+            let u_tilt = gl.get_uniform_location(program, "u_tilt").expect("uniform u_tilt");
 
             // ── Frost program + fullscreen quad ───────────────────────────
             let frost_program =
@@ -258,6 +283,11 @@ impl Underlay {
             let fbo = gl.create_framebuffer().expect("create_framebuffer");
             let fbo_tex = gl.create_texture().expect("create_texture");
 
+            // ── Icon FBO (fixed-size, sized lazily in `render_icon`) ──────
+            let icon_fbo = gl.create_framebuffer().expect("create_framebuffer");
+            let car_tex = gl.create_texture().expect("create_texture");
+            let gear_tex = gl.create_texture().expect("create_texture");
+
             Self {
                 gl,
                 program,
@@ -268,6 +298,7 @@ impl Underlay {
                 u_aspect,
                 u_offset,
                 u_color,
+                u_tilt,
                 frost_program,
                 quad_vbo,
                 frost_pos_location,
@@ -278,6 +309,10 @@ impl Underlay {
                 fbo_tex,
                 fbo_w: 0,
                 fbo_h: 0,
+                icon_fbo,
+                car_tex,
+                gear_tex,
+                icons_ready: false,
             }
         }
     }
@@ -375,6 +410,7 @@ impl Underlay {
             gl.uniform_1_f32(Some(&self.u_aspect), aspect);
             gl.uniform_2_f32(Some(&self.u_offset), offset_x, 0.0);
             gl.uniform_3_f32(Some(&self.u_color), color.0, color.1, color.2);
+            gl.uniform_1_f32(Some(&self.u_tilt), 1.0);
             let (start, count) = self
                 .models
                 .get(model.max(0) as usize)
@@ -409,6 +445,97 @@ impl Underlay {
             gl.use_program(None);
         }
     }
+
+    /// Allocate both icon color textures once, on first use.
+    unsafe fn ensure_icon_fbo(&mut self) {
+        if self.icons_ready {
+            return;
+        }
+        let gl = &self.gl;
+        for tex in [self.car_tex, self.gear_tex] {
+            gl.bind_texture(glow::TEXTURE_2D, Some(tex));
+            gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::RGBA as i32,
+                ICON_SIZE as i32,
+                ICON_SIZE as i32,
+                0,
+                glow::RGBA,
+                glow::UNSIGNED_BYTE,
+                glow::PixelUnpackData::Slice(None),
+            );
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
+            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+        }
+        gl.bind_texture(glow::TEXTURE_2D, None);
+        self.icons_ready = true;
+    }
+
+    /// Render a wireframe icon model (spinning about its vertical axis with
+    /// `time`) into `tex` over a transparent background, and return it wrapped
+    /// as a *borrowed* Slint OpenGL texture (zero-copy — no `glReadPixels`, so
+    /// it does not stall the GPU pipeline). Reuses the main wireframe
+    /// program/geometry; `model` selects which model range to draw.
+    fn render_icon(&mut self, time: f32, color: (f32, f32, f32), model: usize, tex: glow::Texture) -> Image {
+        unsafe { self.ensure_icon_fbo() };
+
+        let gl = &self.gl;
+        unsafe {
+            let prev_fbo = gl.get_parameter_i32(glow::FRAMEBUFFER_BINDING);
+            let prev_fbo = NonZeroU32::new(prev_fbo as u32).map(glow::NativeFramebuffer);
+
+            gl.bind_framebuffer(glow::FRAMEBUFFER, Some(self.icon_fbo));
+            gl.framebuffer_texture_2d(
+                glow::FRAMEBUFFER,
+                glow::COLOR_ATTACHMENT0,
+                glow::TEXTURE_2D,
+                Some(tex),
+                0,
+            );
+            gl.viewport(0, 0, ICON_SIZE as i32, ICON_SIZE as i32);
+            gl.disable(glow::DEPTH_TEST);
+            // Transparent background so the icon blends into the nav button.
+            gl.clear_color(0.0, 0.0, 0.0, 0.0);
+            gl.clear(glow::COLOR_BUFFER_BIT);
+
+            gl.use_program(Some(self.program));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
+            gl.enable_vertex_attrib_array(self.pos_location);
+            gl.vertex_attrib_pointer_f32(self.pos_location, 3, glow::FLOAT, false, 0, 0);
+            gl.uniform_1_f32(Some(&self.u_time), time);
+            // Square target → aspect 1.0 (isotropic); no horizontal offset.
+            gl.uniform_1_f32(Some(&self.u_aspect), 1.0);
+            gl.uniform_2_f32(Some(&self.u_offset), 0.0, 0.0);
+            gl.uniform_3_f32(Some(&self.u_color), color.0, color.1, color.2);
+            // Pure horizontal spin (no X tilt) for the icon.
+            gl.uniform_1_f32(Some(&self.u_tilt), 0.0);
+            // Thicker stroke so the small icon reads clearly. (Driver may
+            // clamp wide aliased lines; Mesa typically allows several px.)
+            gl.line_width(4.0);
+            let (start, count) = self.models.get(model).copied().unwrap_or(self.models[0]);
+            gl.draw_arrays(glow::LINES, start, count);
+            gl.disable_vertex_attrib_array(self.pos_location);
+            gl.line_width(1.0);
+
+            gl.bind_framebuffer(glow::FRAMEBUFFER, prev_fbo);
+            gl.bind_buffer(glow::ARRAY_BUFFER, None);
+            gl.use_program(None);
+        }
+
+        // Hand Slint the live GL texture directly. GL's origin is bottom-left,
+        // so `BottomLeft` flips it to Slint's top-left screen origin.
+        unsafe {
+            BorrowedOpenGLTextureBuilder::new_gl_2d_rgba_texture(
+                tex.0,
+                [ICON_SIZE, ICON_SIZE].into(),
+            )
+        }
+        .origin(BorrowedOpenGLTextureOrigin::BottomLeft)
+        .build()
+    }
 }
 
 impl Drop for Underlay {
@@ -420,6 +547,9 @@ impl Drop for Underlay {
             self.gl.delete_buffer(self.quad_vbo);
             self.gl.delete_framebuffer(self.fbo);
             self.gl.delete_texture(self.fbo_tex);
+            self.gl.delete_framebuffer(self.icon_fbo);
+            self.gl.delete_texture(self.car_tex);
+            self.gl.delete_texture(self.gear_tex);
         }
     }
 }
@@ -784,6 +914,115 @@ fn build_speaker_wireframe() -> Vec<f32> {
     v
 }
 
+/// Build a deliberately simple, centered wireframe car for the nav icon: a
+/// lower body box, a smaller cabin box on top, and four wheel rings (one per
+/// corner, on both flanks). Centered on the origin in all axes so it sits in
+/// the middle of the square icon target, and kept low-poly so it stays legible
+/// at icon size while spinning. Returned as a `GL_LINES` vertex list.
+fn build_car_icon_wireframe() -> Vec<f32> {
+    use std::f32::consts::PI;
+    let mut v: Vec<f32> = Vec::new();
+
+    let hw = 0.40; // body half-width (z)
+
+    // Lower body box.
+    box_edges(&mut v, [-0.85, -0.18, -hw], [0.85, 0.08, hw]);
+    // Cabin / greenhouse: narrower box sitting on the body.
+    box_edges(&mut v, [-0.45, 0.08, -hw * 0.82], [0.35, 0.34, hw * 0.82]);
+
+    // Four wheels as rings in the x-y plane at both flanks.
+    let wheel_r = 0.16;
+    let wheel_y = -0.18;
+    let seg = 16;
+    for &cx in &[-0.5_f32, 0.5] {
+        for &z in &[-hw, hw] {
+            for s in 0..seg {
+                let a0 = 2.0 * PI * (s as f32) / seg as f32;
+                let a1 = 2.0 * PI * ((s + 1) as f32) / seg as f32;
+                edge(
+                    &mut v,
+                    [cx + wheel_r * a0.cos(), wheel_y + wheel_r * a0.sin(), z],
+                    [cx + wheel_r * a1.cos(), wheel_y + wheel_r * a1.sin(), z],
+                );
+            }
+        }
+    }
+
+    // Scale the whole model up so it fills more of the square icon frame
+    // (less empty margin → reads larger). Geometry stays centered on origin.
+    for c in v.iter_mut() {
+        *c *= 1.5;
+    }
+
+    v
+}
+
+/// Build a simple 3D wireframe gear/cog for the settings nav icon: two parallel
+/// toothed rings (front and back faces) joined into a short extruded disc, with
+/// a small central bore. Centered on the origin so it sits in the middle of the
+/// square icon target. Returned as a `GL_LINES` vertex list.
+fn build_gear_icon_wireframe() -> Vec<f32> {
+    use std::f32::consts::PI;
+    let mut v: Vec<f32> = Vec::new();
+
+    let teeth = 8;
+    let r_root = 0.52; // valley radius
+    let r_tip = 0.78; // tooth-tip radius
+    let r_bore = 0.20; // central hole radius
+    let hz = 0.18; // half thickness (extrusion along z)
+
+    // Toothed outline as a list of (x, y) points: each tooth contributes a
+    // rise to the tip, a flat tip, and a fall back to the root.
+    let mut outline: Vec<[f32; 2]> = Vec::new();
+    let steps = teeth * 4; // 4 vertices per tooth
+    for i in 0..steps {
+        let frac = i as f32 / steps as f32;
+        let ang = 2.0 * PI * frac;
+        // Within each tooth (4 slots): 0,1 = tip, 2,3 = root.
+        let slot = i % 4;
+        let r = if slot == 0 || slot == 1 { r_tip } else { r_root };
+        outline.push([r * ang.cos(), r * ang.sin()]);
+    }
+
+    // Front (+z) and back (-z) toothed rings.
+    for &z in &[-hz, hz] {
+        for i in 0..outline.len() {
+            let a = outline[i];
+            let b = outline[(i + 1) % outline.len()];
+            edge(&mut v, [a[0], a[1], z], [b[0], b[1], z]);
+        }
+    }
+    // Spokes joining front and back outline at each vertex (extrusion edges).
+    for i in 0..outline.len() {
+        let a = outline[i];
+        edge(&mut v, [a[0], a[1], -hz], [a[0], a[1], hz]);
+    }
+
+    // Central bore: front + back rings plus joining edges.
+    let bore_seg = 16;
+    for &z in &[-hz, hz] {
+        for s in 0..bore_seg {
+            let a0 = 2.0 * PI * (s as f32) / bore_seg as f32;
+            let a1 = 2.0 * PI * ((s + 1) as f32) / bore_seg as f32;
+            edge(
+                &mut v,
+                [r_bore * a0.cos(), r_bore * a0.sin(), z],
+                [r_bore * a1.cos(), r_bore * a1.sin(), z],
+            );
+        }
+    }
+    for s in 0..bore_seg {
+        let a = 2.0 * PI * (s as f32) / bore_seg as f32;
+        edge(
+            &mut v,
+            [r_bore * a.cos(), r_bore * a.sin(), -hz],
+            [r_bore * a.cos(), r_bore * a.sin(), hz],
+        );
+    }
+
+    v
+}
+
 /// Reinterpret an `f32` slice as bytes for `buffer_data_u8_slice`.
 fn bytemuck_cast(data: &[f32]) -> &[u8] {
     // Safety: `f32` has no padding/invalid bit patterns and `u8` has alignment
@@ -803,6 +1042,17 @@ fn theme_color(window: &AppWindow) -> (f32, f32, f32) {
     )
 }
 
+/// Read the active theme's primary text color as normalized RGB (used to tint
+/// the nav car icon so it matches the surrounding label text).
+fn theme_text_color(window: &AppWindow) -> (f32, f32, f32) {
+    let c = Theme::get(window).get_text();
+    (
+        c.red() as f32 / 255.0,
+        c.green() as f32 / 255.0,
+        c.blue() as f32 / 255.0,
+    )
+}
+
 /// Install the wireframe-sphere underlay on `window`.
 ///
 /// Sets a single rendering notifier that manages the GL resources across the
@@ -811,6 +1061,15 @@ pub(crate) fn install(window: &AppWindow) {
     let weak = window.as_weak();
     let start = Instant::now();
     let mut underlay: Option<Underlay> = None;
+    // Dedicated spin clocks for the nav icons. Each only advances while its
+    // view is active, so an icon pauses when another view is selected and
+    // resumes from the same angle (rather than jumping with wall-clock time).
+    let mut car_time: f32 = 0.0;
+    let mut gear_time: f32 = 0.0;
+    let mut prev_time: f32 = 0.0;
+    // Last active view, so the inactive icon is re-rendered only on a view
+    // change (and at startup) instead of every frame.
+    let mut last_view: i32 = -1;
 
     let result = window.window().set_rendering_notifier(move |state, graphics_api| {
         match state {
@@ -843,8 +1102,48 @@ pub(crate) fn install(window: &AppWindow) {
                         SIDEBAR_W * scale / size.width as f32
                     };
                     underlay.render(size.width, size.height, time, color, offset_x, model, enabled);
-                    if enabled {
-                        // Keep the animation going.
+
+                    // Spinning nav icons. Each icon owns a GL texture handed to
+                    // Slint as a zero-copy borrowed texture (no glReadPixels, so
+                    // no GPU pipeline stall). The active view's icon is
+                    // re-rendered every frame (advancing its spin clock); the
+                    // other icon's texture keeps its last content, so it is only
+                    // re-rendered on a view change (or startup) — a parked,
+                    // frozen frame. Resuming a view continues from the same
+                    // angle (no wall-clock jump).
+                    let active_view = win.get_active_view();
+                    let dt = (time - prev_time).max(0.0);
+                    prev_time = time;
+                    let icon_color = theme_text_color(&win);
+                    let view_changed = active_view != last_view;
+                    last_view = active_view;
+                    let car_tex = underlay.car_tex;
+                    let gear_tex = underlay.gear_tex;
+
+                    if active_view == 0 {
+                        car_time += dt;
+                        let car = underlay.render_icon(car_time, icon_color, ICON_MODEL_CAR, car_tex);
+                        win.set_auto_icon(car);
+                        if view_changed {
+                            let gear = underlay
+                                .render_icon(gear_time, icon_color, ICON_MODEL_GEAR, gear_tex);
+                            win.set_settings_icon(gear);
+                        }
+                    } else if active_view == 1 {
+                        gear_time += dt;
+                        let gear =
+                            underlay.render_icon(gear_time, icon_color, ICON_MODEL_GEAR, gear_tex);
+                        win.set_settings_icon(gear);
+                        if view_changed {
+                            let car =
+                                underlay.render_icon(car_time, icon_color, ICON_MODEL_CAR, car_tex);
+                            win.set_auto_icon(car);
+                        }
+                    }
+
+                    // Keep animating while the GL background or either nav icon
+                    // view is active.
+                    if enabled || active_view == 0 || active_view == 1 {
                         win.window().request_redraw();
                     }
                 }

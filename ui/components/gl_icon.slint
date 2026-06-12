@@ -1,0 +1,26 @@
+// Displays a GL-rendered spinning wireframe icon (car, gear, …) for a nav
+// button. The mesh, rotation and theme coloring are all produced in Rust
+// (src/gfx.rs) and delivered as `source`; this component only frames and
+// scales that image. While `active`, Rust keeps pushing fresh frames so the
+// model spins on its own vertical axis; when inactive the last frame stays put
+// (a parked view).
+export component GlIcon inherits Rectangle {
+    in property <bool> active;
+    in property <image> source;
+
+    // Full width so `image-fit: contain` centers the square image horizontally
+    // within the nav button; height sets the on-screen size.
+    height: 48px;
+    background: transparent;
+
+    Image {
+        width: 100%;
+        height: 100%;
+        source: root.source;
+        image-fit: contain;
+        // Dim slightly when the view is inactive to match the muted nav glyphs.
+        opacity: root.active ? 1.0 : 0.55;
+        animate opacity { duration: 150ms; easing: ease-in-out; }
+    }
+}
+

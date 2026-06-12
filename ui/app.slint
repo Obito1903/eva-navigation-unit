@@ -1,0 +1,176 @@
+// a310 – Android Auto head unit UI
+// Touch-first, car-infotainment layout:
+//   • Left sidebar  : wide nav buttons (≥ 72px) close to the driver
+//   • Content area  : fills the rest — AA video or settings placeholder
+
+import { VerticalBox } from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "a310";
+    preferred-width: 1280px;
+    preferred-height: 720px;
+    background: #0d0d1a;
+
+    // Updated by Rust each decoded video frame
+    in-out property <image> video-frame;
+
+    // 0 = Android Auto  |  1 = Settings
+    in-out property <int> active-view: 0;
+
+    // Connected state (controls overlay text on AA view)
+    in-out property <bool> aa-connected: false;
+
+    // Fired by the video TouchArea: x, y in video-source pixels, touch_action (0=down 1=move 2=up)
+    callback touch-event(float, float, int);
+
+    // Fired by sidebar nav buttons
+    callback nav-to(int);
+
+    HorizontalLayout {
+        // ── Left sidebar ────────────────────────────────────────────────
+        Rectangle {
+            width: 90px;
+            background: #1a1a2e;
+
+            VerticalLayout {
+                alignment: start;
+                padding: 8px;
+                spacing: 6px;
+
+                // Android Auto button
+                sidebar-btn := Rectangle {
+                    height: 72px;
+                    border-radius: 10px;
+                    background: active-view == 0 ? #3a7bd5 : #2a2a40;
+
+                    ta0 := TouchArea {
+                        clicked => { root.nav-to(0); root.active-view = 0; }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 4px;
+
+                        Text {
+                            text: "🚗";
+                            font-size: 22px;
+                            horizontal-alignment: center;
+                        }
+                        Text {
+                            text: "AA";
+                            color: white;
+                            font-size: 11px;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+
+                // Settings button
+                Rectangle {
+                    height: 72px;
+                    border-radius: 10px;
+                    background: active-view == 1 ? #3a7bd5 : #2a2a40;
+
+                    ta1 := TouchArea {
+                        clicked => { root.nav-to(1); root.active-view = 1; }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 4px;
+
+                        Text {
+                            text: "⚙";
+                            font-size: 22px;
+                            horizontal-alignment: center;
+                        }
+                        Text {
+                            text: "Settings";
+                            color: white;
+                            font-size: 11px;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Content area ─────────────────────────────────────────────────
+        Rectangle {
+            horizontal-stretch: 1;
+            background: #0d0d1a;
+
+            // ── View 0 : Android Auto video ──────────────────────────────
+            if active-view == 0: Rectangle {
+                width: 100%;
+                height: 100%;
+
+                // Video frame display
+                Image {
+                    width: 100%;
+                    height: 100%;
+                    source: root.video-frame;
+                    image-fit: fill;
+                }
+
+                // "Waiting" overlay shown when not yet connected / no frame
+                if !root.aa-connected: Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    background: #0d0d1a;
+
+                    Text {
+                        text: "Waiting for Android Auto…";
+                        color: #888888;
+                        font-size: 20px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Touch area forwarded to the AA protocol
+                video-touch := TouchArea {
+                    width: 100%;
+                    height: 100%;
+
+                    // Map logical TouchArea coords → video source pixel coords.
+                    // mouse-x/mouse-y are the current pointer position within this TouchArea.
+                    pointer-event(e) => {
+                        root.touch-event(
+                            video-touch.mouse-x * (root.video-frame.width  / video-touch.width),
+                            video-touch.mouse-y * (root.video-frame.height / video-touch.height),
+                            e.kind == PointerEventKind.down ? 0
+                                : e.kind == PointerEventKind.up ? 2
+                                : 1,
+                        );
+                    }
+                }
+            }
+
+            // ── View 1 : Settings placeholder ────────────────────────────
+            if active-view == 1: Rectangle {
+                width: 100%;
+                height: 100%;
+                background: #0d0d1a;
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 16px;
+
+                    Text {
+                        text: "Settings";
+                        color: white;
+                        font-size: 28px;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: "Coming soon…";
+                        color: #888888;
+                        font-size: 16px;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}

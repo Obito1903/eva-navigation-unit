@@ -1,0 +1,62 @@
+//! Hotspot management via NetworkManager D-Bus (ported from the android-auto example).
+
+use std::collections::HashMap;
+use zbus::{Connection, proxy};
+use zvariant::{OwnedObjectPath, OwnedValue};
+
+type NmSettings = HashMap<String, HashMap<String, OwnedValue>>;
+
+#[proxy(
+    interface = "org.freedesktop.NetworkManager",
+    default_service = "org.freedesktop.NetworkManager",
+    default_path = "/org/freedesktop/NetworkManager"
+)]
+trait NmProxy {
+    fn add_and_activate_connection(
+        &self,
+        connection: &NmSettings,
+        device: &OwnedObjectPath,
+        specific_object: &OwnedObjectPath,
+    ) -> zbus::Result<(OwnedObjectPath, OwnedObjectPath)>;
+}
+
+fn to_owned_settings(
+    input: HashMap<&str, HashMap<&str, zvariant::Value<'_>>>,
+) -> HashMap<String, HashMap<String, OwnedValue>> {
+    input
+        .into_iter()
+        .map(|(section, props)| {
+            let owned_props = props
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.try_to_owned().unwrap()))
+                .collect();
+            (section.to_string(), owned_props)
+        })
+        .collect()
+}
+
+pub async fn start_hotspot(ssid: String, psk: String, wifi_dev_path: &str) -> Result<(), String> {
+    let hotspot = nmrs::builders::WifiConnectionBuilder::new(&ssid)
+        .wpa_psk(&psk)
+        .autoconnect(false)
+        .mode(nmrs::builders::WifiMode::Ap)
+        .build();
+    build_hotspot(wifi_dev_path, hotspot).await
+}
+
+async fn build_hotspot(
+    wifi_hw: &str,
+    settings: HashMap<&str, HashMap<&str, zvariant::Value<'_>>>,
+) -> Result<(), String> {
+    let settings = to_owned_settings(settings);
+    let dbus = Connection::system().await.map_err(|e| e.to_string())?;
+    let wifi_device = OwnedObjectPath::try_from(wifi_hw).map_err(|e| e.to_string())?;
+    let any = OwnedObjectPath::try_from("/").unwrap();
+    let nm = NmProxyProxy::new(&dbus).await.map_err(|e| e.to_string())?;
+    let (conn_path, _active) = nm
+        .add_and_activate_connection(&settings, &wifi_device, &any)
+        .await
+        .map_err(|e| e.to_string())?;
+    log::info!("Hotspot connection path: {conn_path}");
+    Ok(())
+}

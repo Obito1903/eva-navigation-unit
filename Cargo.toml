@@ -1,0 +1,33 @@
+[package]
+name = "a310"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+android-auto = { path = "../android-auto", features = ["usb", "wireless"] }
+async-trait = "0.1"
+bluetooth-rust = "0.3"
+cpal = "0.17"
+log = "0.4"
+nmrs = "2.0"
+openh264 = "0.9"
+ringbuf = "0.4"
+simple_logger = "5"
+slint = "1"
+tokio = { version = "1", features = ["full"] }
+zbus = "5"
+zvariant = "5"
+
+[build-dependencies]
+slint-build = "1"
+
+[features]
+# Both transport modes enabled by default — match the android-auto path dep
+default = []
+
+# Required for the v1 certificate used by android-auto (src/cert.rs).
+# `[patch]` only applies from the crate being built, so it must be duplicated
+# here even though android-auto declares the same patch.
+[patch.crates-io]
+rustls-webpki = { git = "https://github.com/uglyoldbob/webpki", branch = "main5" }

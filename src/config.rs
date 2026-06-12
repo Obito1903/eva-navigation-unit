@@ -186,7 +186,13 @@ impl Config {
             max_dpi,
             dpi,
             wireless,
-            resolution: if resolution >= 1080 { 1080 } else { 720 },
+            resolution: if resolution >= 1080 {
+                1080
+            } else if resolution >= 720 {
+                720
+            } else {
+                480
+            },
             transition_mode: transition_mode.clamp(0, 2),
             aa_video_transition_mode: aa_video_transition_mode.clamp(0, 2),
             transition_speed: transition_speed.clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),

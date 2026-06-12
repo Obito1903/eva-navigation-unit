@@ -18,7 +18,7 @@ export component SettingsAndroidAutoTab inherits Rectangle {
     in-out property <bool> wireless-enabled: true;
     callback wireless-changed(bool);
 
-    // Android Auto video resolution (720 or 1080 vertical lines).
+    // Android Auto video resolution (480, 720 or 1080 vertical lines).
     in-out property <int> resolution: 720;
     callback resolution-changed(int);
 
@@ -117,10 +117,10 @@ export component SettingsAndroidAutoTab inherits Rectangle {
 
                 Dropdown {
                     width: 200px;
-                    options: ["720p", "1080p"];
-                    current-index: root.resolution >= 1080 ? 1 : 0;
+                    options: ["480p", "720p", "1080p"];
+                    current-index: root.resolution >= 1080 ? 2 : (root.resolution >= 720 ? 1 : 0);
                     selected(i) => {
-                        root.resolution = i == 1 ? 1080 : 720;
+                        root.resolution = i == 2 ? 1080 : (i == 1 ? 720 : 480);
                         root.resolution-changed(root.resolution);
                     }
                 }

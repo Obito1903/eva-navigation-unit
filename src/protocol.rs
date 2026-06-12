@@ -330,12 +330,13 @@ impl android_auto::AndroidAutoMainTrait for AndroidAuto {
 // ── Constructor & start ─────────────────────────────────────────────────────
 
 /// Build a [`VideoConfiguration`] for the requested vertical resolution
-/// (`720` or `1080`), sizing the active picture to match the head unit's
-/// screen aspect ratio via margins.
+/// (`480`, `720` or `1080`), sizing the active picture to match the head
+/// unit's screen aspect ratio via margins.
 ///
-/// Android Auto encodes at fixed 16:9 base resolutions (720p = 1280×720,
-/// 1080p = 1920×1080). When the screen is not 16:9 we keep the base buffer and
-/// add margins so the visible region matches `screen_w / screen_h`.
+/// Android Auto encodes at fixed 16:9 base resolutions (480p = 800×480,
+/// 720p = 1280×720, 1080p = 1920×1080). When the screen is not 16:9 we keep
+/// the base buffer and add margins so the visible region matches
+/// `screen_w / screen_h`.
 pub(crate) fn build_video_configuration(
     resolution: i32,
     screen_w: u32,
@@ -344,8 +345,10 @@ pub(crate) fn build_video_configuration(
 ) -> VideoConfiguration {
     let (res_enum, base_w, base_h) = if resolution >= 1080 {
         (android_auto::Wifi::video_resolution::Enum::_1080p, 1920i32, 1080i32)
-    } else {
+    } else if resolution >= 720 {
         (android_auto::Wifi::video_resolution::Enum::_720p, 1280i32, 720i32)
+    } else {
+        (android_auto::Wifi::video_resolution::Enum::_480p, 800i32, 480i32)
     };
 
     // Guard against a degenerate/zero screen size; fall back to the 16:9 base.
@@ -366,9 +369,15 @@ pub(crate) fn build_video_configuration(
         }
     };
 
+    let res_label = if resolution >= 1080 {
+        1080
+    } else if resolution >= 720 {
+        720
+    } else {
+        480
+    };
     log::info!(
-        "Android Auto video: {}p base {base_w}x{base_h}, screen {screen_w}x{screen_h}, margins {margin_width}x{margin_height}",
-        if resolution >= 1080 { 1080 } else { 720 }
+        "Android Auto video: {res_label}p base {base_w}x{base_h}, screen {screen_w}x{screen_h}, margins {margin_width}x{margin_height}"
     );
 
     VideoConfiguration {

@@ -43,18 +43,24 @@ export component ViewSlot inherits Rectangle {
             duration: Theme.view-anim;
             easing: ease-in-out;
         }
-        // CRT: tube stays lit through the sweep, then the phosphor dies out.
+        // CRT: snap to full brightness the instant the tube powers on so the
+        // dot→line→full geometry sweep is what reads (never a fade-in); on
+        // power-off it stays lit through the collapse, then the phosphor dies.
         // FADE/SLIDE: straightforward crossfade.
         animate opacity {
-            duration: root.mode == 0 ? Theme.crt-flash : (root.mode == 1 ? Theme.fade-anim : Theme.view-anim);
+            duration: root.mode == 0
+                ? (root.active ? 0ms : Theme.crt-flash)
+                : (root.mode == 1 ? Theme.fade-anim : Theme.view-anim);
             delay: (root.mode == 0 && !root.active) ? Theme.crt-gap + Theme.crt-sweep : 0ms;
             easing: ease-in-out;
         }
 
         @children
 
-        // Phosphor flash (CRT mode only) — a white wash that blooms as the image
-        // pinches down to the scanline/dot and decays as the picture settles.
+        // Phosphor flash (CRT mode only) — a white wash that blooms at the
+        // scanline/dot pinch point as the tube powers off, then disappears
+        // with the box. Kept off entirely during power-on so the bright sweep
+        // reveal is what reads.
         Rectangle {
             width: 100%;
             height: 100%;

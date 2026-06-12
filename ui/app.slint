@@ -27,6 +27,9 @@ export component AppWindow inherits Window {
     // Connected state (controls the AA overlay)
     in-out property <bool> aa-connected: false;
 
+    // True once the first decoded frame after connect is available.
+    in-out property <bool> aa-video-ready: false;
+
     // Android Auto DPI setting
     in-out property <int> aa-dpi: 160;
     in-out property <int> aa-min-dpi: 80;
@@ -81,6 +84,7 @@ export component AppWindow inherits Window {
                     height: 100%;
                     video-frame: root.video-frame;
                     connected: root.aa-connected;
+                    video-ready: root.aa-video-ready;
                     active: root.active-view == 0;
                     transition-mode: root.aa-video-transition-mode;
                     touch-event(x, y, k) => {

@@ -110,14 +110,17 @@ pub(crate) fn wire(
                 }
                 MessageFromAsync::Connected => {
                     log::info!("Android Auto connected");
-                    // Clear any stale frame so the stream fades in from black
-                    // rather than briefly showing the previous session's frame.
+                    // Clear any stale frame and mark the stream "not ready" so
+                    // the start transition only plays once the first real frame
+                    // arrives (see `set_aa_video_ready` in the decoder thread).
                     win.set_video_frame(slint::Image::default());
+                    win.set_aa_video_ready(false);
                     win.set_aa_connected(true);
                 }
                 MessageFromAsync::Disconnected => {
                     log::info!("Android Auto disconnected");
                     win.set_aa_connected(false);
+                    win.set_aa_video_ready(false);
                     let _ = video_tx.send(VideoCommand::Flush);
                     // Keep the last frame mounted so the locked overlay can
                     // crossfade over it; it is cleared on the next connect.

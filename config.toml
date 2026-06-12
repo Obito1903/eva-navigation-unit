@@ -2,5 +2,5 @@ min_dpi = 80
 max_dpi = 320
 dpi = 160
 wireless = false
-transition_mode = 2
+transition_mode = 1
 aa_video_transition_mode = 0

@@ -9,6 +9,9 @@ export component AndroidAutoView inherits Rectangle {
     in property <image> video-frame;
     in property <bool> connected;
     in property <bool> active;
+    // True once the first decoded frame after connect is available, so the
+    // start transition plays on real video content rather than an empty image.
+    in property <bool> video-ready;
     // View transition mode for video start/stop: 0 = CRT | 1 = FADE | 2 = SLIDE
     in property <int> transition-mode: 0;
     callback touch-event(float, float, int);
@@ -22,7 +25,7 @@ export component AndroidAutoView inherits Rectangle {
         width: 100%;
         height: 100%;
         background: Theme.bg;
-        opacity: root.connected ? 0.0 : 1.0;
+        opacity: (root.connected && root.video-ready) ? 0.0 : 1.0;
         visible: self.opacity > 0.0;
         animate opacity { duration: Theme.fade-anim; easing: ease-in-out; }
 
@@ -90,11 +93,11 @@ export component AndroidAutoView inherits Rectangle {
         }
     }
 
-    // Video frame display — transitions in once Android Auto connects, using
-    // the selected start/stop transition (CRT / fade / slide). Drawn on top of
-    // the overlay so its transition is fully visible.
+    // Video frame display — transitions in once the first frame is ready,
+    // using the selected start/stop transition (CRT / fade / slide). Drawn on
+    // top of the overlay so its transition is fully visible.
     ViewSlot {
-        active: root.connected;
+        active: root.connected && root.video-ready;
         slide: 32px;
         mode: root.transition-mode;
 

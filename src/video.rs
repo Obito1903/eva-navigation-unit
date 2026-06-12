@@ -65,6 +65,10 @@ pub(crate) fn spawn_decoder(
                                                 );
                                             buf.make_mut_bytes().copy_from_slice(&rgb);
                                             win.set_video_frame(slint::Image::from_rgb8(buf));
+                                            // First real frame is now mounted —
+                                            // let the UI play the start
+                                            // transition over actual video.
+                                            win.set_aa_video_ready(true);
                                         }
                                     });
                                 }

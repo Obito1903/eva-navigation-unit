@@ -6,6 +6,10 @@ import { CapsuleBarSlider } from "../components/capsule_bar_slider.slint";
 export component SettingsUiTab inherits Rectangle {
     background: transparent;
 
+    // Color theme: 0 = NERV-HQ | 1 = MATRIX
+    in-out property <int> theme-id: 0;
+    callback theme-changed(int);
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -40,6 +44,41 @@ export component SettingsUiTab inherits Rectangle {
         Rectangle {
             height: 1px;
             background: Theme.red-dim;
+        }
+
+        // ── Appearance ────────────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "APPEARANCE";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "COLOR THEME";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 200px;
+                    options: ["NERV-HQ", "MATRIX", "NEON"];
+                    current-index <=> root.theme-id;
+                    selected(i) => {
+                        root.theme-changed(i);
+                    }
+                }
+            }
         }
 
         // ── Transitions ───────────────────────────────────────────────

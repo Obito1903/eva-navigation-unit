@@ -12,11 +12,19 @@ import { ViewSlot } from "components/view_slot.slint";
 import { AndroidAutoView } from "views/android_auto.slint";
 import { SettingsView } from "views/settings.slint";
 
+// Re-export the palette global so Rust can switch themes at runtime.
+export { Theme }
+
 export component AppWindow inherits Window {
     title: "a310";
     preferred-width: 1280px;
     preferred-height: 720px;
     background: Theme.bg;
+
+    // Active color theme: 0 = NERV-HQ | 1 = MATRIX. Drives the global palette.
+    // The global `Theme.theme-id` is updated from Rust (startup + on change).
+    in-out property <int> theme-id: 0;
+    callback theme-changed(int);
 
     // Updated by Rust each decoded video frame
     in-out property <image> video-frame;
@@ -128,6 +136,10 @@ export component AppWindow inherits Window {
                     transition-mode <=> root.transition-mode;
                     transition-changed(v) => {
                         root.transition-changed(v);
+                    }
+                    theme-id <=> root.theme-id;
+                    theme-changed(v) => {
+                        root.theme-changed(v);
                     }
                     aa-video-transition-mode <=> root.aa-video-transition-mode;
                     aa-video-transition-changed(v) => {

@@ -34,6 +34,8 @@ pub(crate) const DEFAULT_WIRELESS: bool = true;
 pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
 /// Default Android Auto video frame rate (30 or 60 fps).
 pub(crate) const DEFAULT_FPS: i32 = 30;
+/// Default color theme (0 = NERV-HQ | 1 = MATRIX).
+pub(crate) const DEFAULT_THEME: i32 = 0;
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -83,6 +85,10 @@ struct Cli {
     /// Android Auto video transition speed multiplier (higher = faster).
     #[arg(long, env = "EVA_AA_VIDEO_TRANSITION_SPEED")]
     aa_video_transition_speed: Option<f32>,
+
+    /// Color theme (0 = NERV-HQ | 1 = MATRIX).
+    #[arg(long, env = "EVA_THEME")]
+    theme: Option<i32>,
 }
 
 /// Shape of the optional TOML configuration file.
@@ -98,6 +104,7 @@ struct FileConfig {
     aa_video_transition_mode: Option<i32>,
     transition_speed: Option<f32>,
     aa_video_transition_speed: Option<f32>,
+    theme: Option<i32>,
 }
 
 /// Fully resolved runtime configuration.
@@ -113,6 +120,8 @@ pub(crate) struct Config {
     pub(crate) aa_video_transition_mode: i32,
     pub(crate) transition_speed: f32,
     pub(crate) aa_video_transition_speed: f32,
+    /// Active color theme (0 = NERV-HQ | 1 = MATRIX).
+    pub(crate) theme: i32,
     /// Path the configuration is loaded from and saved back to.
     pub(crate) path: PathBuf,
 }
@@ -152,6 +161,8 @@ impl Config {
             .or(file.aa_video_transition_speed)
             .unwrap_or(DEFAULT_AA_VIDEO_TRANSITION_SPEED);
 
+        let theme = cli.theme.or(file.theme).unwrap_or(DEFAULT_THEME);
+
         Self::sanitised(
             min_dpi,
             max_dpi,
@@ -163,6 +174,7 @@ impl Config {
             aa_video_transition_mode,
             transition_speed,
             aa_video_transition_speed,
+            theme,
             path,
         )
     }
@@ -181,6 +193,7 @@ impl Config {
         aa_video_transition_mode: i32,
         transition_speed: f32,
         aa_video_transition_speed: f32,
+        theme: i32,
         path: PathBuf,
     ) -> Self {
         let mut min_dpi = min_dpi.max(1);
@@ -210,6 +223,7 @@ impl Config {
             transition_speed: transition_speed.clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
             aa_video_transition_speed: aa_video_transition_speed
                 .clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
+            theme: theme.max(0),
             path,
         }
     }
@@ -227,6 +241,7 @@ impl Config {
             aa_video_transition_mode: Some(self.aa_video_transition_mode),
             transition_speed: Some(self.transition_speed),
             aa_video_transition_speed: Some(self.aa_video_transition_speed),
+            theme: Some(self.theme),
         };
         match toml::to_string_pretty(&file) {
             Ok(contents) => {

@@ -1,36 +1,125 @@
 // Shared palette and animation timings.
 // Imported by every component/view so styling stays in one place.
 //
-// Multiple color themes are supported, selected via `theme-id`:
+// Color themes are stored in the `palettes` list and selected via `theme-id`
+// (an index into that list). To add a new theme, append another entry to
+// `palettes` and a matching label to the UI dropdown — nothing else changes.
 //   0 = NERV-HQ  — red wireframe, amber-orange text (default)
-//   1 = MATRIX   — green wireframe/background, white-green text
+//   1 = MATRIX   — green wireframe/background, white-green phosphor text
+
+// A complete color palette for one theme.
+struct ThemePalette {
+    // Accent / wireframe colors (named `red*` for historical reasons).
+    red: color,
+    red-dim: color,
+    red-mute: color,
+    bg: color,
+    panel: color,
+    panel-btn: color,
+    // Bar-level capsule colors
+    bar-bright: color,
+    bar-mid: color,
+    bar-dim: color,
+    bar-cap: color,
+    bar-cap-dim: color,
+    bar-bg: color,
+    // Text colors
+    text: color,
+    text-dim: color,
+    text-mute: color,
+    glow: color,
+}
+
 export global Theme {
-    // Active theme: 0 = NERV-HQ | 1 = MATRIX. Bound from Rust/UI.
+    // Active theme: index into `palettes`. Bound from Rust/UI.
     in-out property <int> theme-id: 0;
 
-    // Accent / wireframe colors (named `red*` for historical reasons).
-    out property <color> red: theme-id == 1 ? #00ff41 : #e6231b;
-    out property <color> red-dim: theme-id == 1 ? #0c4d1c : #6b1410;
-    out property <color> red-mute: theme-id == 1 ? #1c6e30 : #7a2620;
-    out property <color> bg: theme-id == 1 ? #001505 : #000000;
-    out property <color> panel: theme-id == 1 ? #02160a : #0a0204;
-    out property <color> panel-btn: theme-id == 1 ? #04220e : #120305;
+    // All available themes. Append here to add more.
+    property <[ThemePalette]> palettes: [
+        // 0 — NERV-HQ: red wireframe, warm amber-orange text (Gunbuster aesthetic)
+        {
+            red: #e6231b,
+            red-dim: #6b1410,
+            red-mute: #7a2620,
+            bg: #000000,
+            panel: #0a0204,
+            panel-btn: #120305,
+            bar-bright: #70b8ff,
+            bar-mid: #3a7cdc,
+            bar-dim: #1a2540,
+            bar-cap: #9aacbe,
+            bar-cap-dim: #3a4858,
+            bar-bg: #0c1220,
+            text: #FFA030,
+            text-dim: #C87018,
+            text-mute: #7A4510,
+            glow: #FFA03066,
+        },
+        // 1 — MATRIX: green wireframe/background, white-green phosphor text
+        {
+            red: #00ff41,
+            red-dim: #0c4d1c,
+            red-mute: #1c6e30,
+            bg: #000200,
+            panel: #020a05,
+            panel-btn: #04120a,
+            bar-bright: #5cff7a,
+            bar-mid: #2ed14a,
+            bar-dim: #133d1c,
+            bar-cap: #b8ffc4,
+            bar-cap-dim: #3a6848,
+            bar-bg: #030d06,
+            text: #d6ffdc,
+            text-dim: #5cff7a,
+            text-mute: #2c8a40,
+            glow: #5cff7a66,
+        },
+        // 2 — NEON: cyan/magenta neon accents on near-black
+        {
+            red: #00e5ff,
+            red-dim: #0a3d4d,
+            red-mute: #136274,
+            bg: #050008,
+            panel: #0c0612,
+            panel-btn: #150a1f,
+            bar-bright: #ff39d6,
+            bar-mid: #b521a8,
+            bar-dim: #3a1238,
+            bar-cap: #ff9cf0,
+            bar-cap-dim: #6b3a66,
+            bar-bg: #120618,
+            text: #e6f9ff,
+            text-dim: #00e5ff,
+            text-mute: #1f7a8c,
+            glow: #00e5ff66,
+        },
+    ];
 
-    // Bar-level capsule colors
-    out property <color> bar-bright: theme-id == 1 ? #5cff7a : #70b8ff;
-    out property <color> bar-mid: theme-id == 1 ? #2ed14a : #3a7cdc;
-    out property <color> bar-dim: theme-id == 1 ? #133d1c : #1a2540;
-    out property <color> bar-cap: theme-id == 1 ? #b8ffc4 : #9aacbe;
-    out property <color> bar-cap-dim: theme-id == 1 ? #3a6848 : #3a4858;
-    out property <color> bar-bg: theme-id == 1 ? #061a0c : #0c1220;
+    // The active palette, with the index clamped to a valid entry so an
+    // out-of-range `theme-id` falls back to the first theme rather than failing.
+    property <ThemePalette> p: palettes[
+        (theme-id >= 0 && theme-id < palettes.length) ? theme-id : 0
+    ];
 
-    // Text colors
-    //   NERV-HQ: warm amber-orange (Gunbuster display aesthetic)
-    //   MATRIX:  white-green phosphor
-    out property <color> text: theme-id == 1 ? #d6ffdc : #FFA030;
-    out property <color> text-dim: theme-id == 1 ? #5cff7a : #C87018;
-    out property <color> text-mute: theme-id == 1 ? #2c8a40 : #7A4510;
-    out property <color> glow: theme-id == 1 ? #5cff7a66 : #FFA03066;  // 40% alpha for bloom layers
+    // Resolved colors used throughout the UI.
+    out property <color> red: p.red;
+    out property <color> red-dim: p.red-dim;
+    out property <color> red-mute: p.red-mute;
+    out property <color> bg: p.bg;
+    out property <color> panel: p.panel;
+    out property <color> panel-btn: p.panel-btn;
+
+    out property <color> bar-bright: p.bar-bright;
+    out property <color> bar-mid: p.bar-mid;
+    out property <color> bar-dim: p.bar-dim;
+    out property <color> bar-cap: p.bar-cap;
+    out property <color> bar-cap-dim: p.bar-cap-dim;
+    out property <color> bar-bg: p.bar-bg;
+
+    out property <color> text: p.text;
+    out property <color> text-dim: p.text-dim;
+    out property <color> text-mute: p.text-mute;
+    out property <color> glow: p.glow;  // includes alpha for bloom layers
 
     // Animation timings
     out property <duration> view-anim: 250ms;

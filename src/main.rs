@@ -29,9 +29,9 @@ mod ui;
 mod video;
 
 use slint::ComponentHandle;
+use slint::Global;
 
 slint::include_modules!();
-
 fn main() -> Result<(), slint::PlatformError> {
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
@@ -60,6 +60,9 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_aa_video_transition_mode(cfg.aa_video_transition_mode);
     window.set_transition_speed(cfg.transition_speed);
     window.set_aa_video_transition_speed(cfg.aa_video_transition_speed);
+    window.set_theme_id(cfg.theme);
+    // Apply the persisted theme to the global palette at startup.
+    Theme::get(&window).set_theme_id(cfg.theme);
 
     ui::wire(&window, setup, cfg);
     window.run()

@@ -33,6 +33,10 @@ export component SettingsView inherits Rectangle {
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
 
+    // Color theme: 0 = NERV-HQ | 1 = MATRIX
+    in-out property <int> theme-id: 0;
+    callback theme-changed(int);
+
     // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> aa-video-transition-mode: 1;
     callback aa-video-transition-changed(int);
@@ -150,6 +154,10 @@ export component SettingsView inherits Rectangle {
                 if root.active-tab == 1 : SettingsUiTab {
                     width: 100%;
                     height: 100%;
+                    theme-id <=> root.theme-id;
+                    theme-changed(v) => {
+                        root.theme-changed(v);
+                    }
                     transition-mode <=> root.transition-mode;
                     transition-changed(v) => {
                         root.transition-changed(v);

@@ -5,7 +5,9 @@ use crate::container::{AndroidAutoContainer, VideoSettings};
 use crate::messages::{MessageFromAsync, MessageToAsync, VideoCommand};
 use crate::video;
 use crate::AppWindow;
+use crate::Theme;
 use slint::ComponentHandle;
+use slint::Global;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
@@ -132,6 +134,21 @@ pub(crate) fn wire(
             log::info!("Android Auto video transition speed set to {speed:.2}×");
             let mut cfg = cfg.borrow_mut();
             cfg.aa_video_transition_speed = speed;
+            cfg.save();
+        });
+    }
+
+    // ── Color theme: Settings UI → config ─────────────────────────────────
+    {
+        let cfg = cfg.clone();
+        let window_weak = window_weak.clone();
+        window.on_theme_changed(move |theme| {
+            log::info!("Color theme set to {theme}");
+            if let Some(win) = window_weak.upgrade() {
+                Theme::get(&win).set_theme_id(theme);
+            }
+            let mut cfg = cfg.borrow_mut();
+            cfg.theme = theme;
             cfg.save();
         });
     }

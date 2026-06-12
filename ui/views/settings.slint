@@ -41,6 +41,10 @@ export component SettingsView inherits Rectangle {
     in-out property <int> theme-id: 0;
     callback theme-changed(int);
 
+    // GL underlay wireframe model: 0 = sphere | 1 = cube | 2 = car
+    in-out property <int> gfx-model: 0;
+    callback gfx-model-changed(int);
+
     // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> aa-video-transition-mode: 1;
     callback aa-video-transition-changed(int);
@@ -161,6 +165,10 @@ export component SettingsView inherits Rectangle {
                     theme-id <=> root.theme-id;
                     theme-changed(v) => {
                         root.theme-changed(v);
+                    }
+                    gfx-model <=> root.gfx-model;
+                    gfx-model-changed(v) => {
+                        root.gfx-model-changed(v);
                     }
                     transition-mode <=> root.transition-mode;
                     transition-changed(v) => {

@@ -10,6 +10,10 @@ export component SettingsUiTab inherits Rectangle {
     in-out property <int> theme-id: 0;
     callback theme-changed(int);
 
+    // GL underlay wireframe model: 0 = sphere | 1 = cube | 2 = car
+    in-out property <int> gfx-model: 0;
+    callback gfx-model-changed(int);
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -76,6 +80,28 @@ export component SettingsUiTab inherits Rectangle {
                     current-index <=> root.theme-id;
                     selected(i) => {
                         root.theme-changed(i);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "BACKGROUND MODEL";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 200px;
+                    options: ["SPHERE", "CUBE", "CAR"];
+                    current-index <=> root.gfx-model;
+                    selected(i) => {
+                        root.gfx-model-changed(i);
                     }
                 }
             }

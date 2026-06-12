@@ -36,6 +36,8 @@ pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
 pub(crate) const DEFAULT_FPS: i32 = 30;
 /// Default color theme (0 = NERV-HQ | 1 = MATRIX).
 pub(crate) const DEFAULT_THEME: i32 = 0;
+/// Default GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car).
+pub(crate) const DEFAULT_GFX_MODEL: i32 = 0;
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -89,6 +91,10 @@ struct Cli {
     /// Color theme (0 = NERV-HQ | 1 = MATRIX).
     #[arg(long, env = "EVA_THEME")]
     theme: Option<i32>,
+
+    /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car).
+    #[arg(long, env = "EVA_GFX_MODEL")]
+    gfx_model: Option<i32>,
 }
 
 /// Shape of the optional TOML configuration file.
@@ -105,6 +111,7 @@ struct FileConfig {
     transition_speed: Option<f32>,
     aa_video_transition_speed: Option<f32>,
     theme: Option<i32>,
+    gfx_model: Option<i32>,
 }
 
 /// Fully resolved runtime configuration.
@@ -122,6 +129,8 @@ pub(crate) struct Config {
     pub(crate) aa_video_transition_speed: f32,
     /// Active color theme (0 = NERV-HQ | 1 = MATRIX).
     pub(crate) theme: i32,
+    /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car).
+    pub(crate) gfx_model: i32,
     /// Path the configuration is loaded from and saved back to.
     pub(crate) path: PathBuf,
 }
@@ -162,6 +171,7 @@ impl Config {
             .unwrap_or(DEFAULT_AA_VIDEO_TRANSITION_SPEED);
 
         let theme = cli.theme.or(file.theme).unwrap_or(DEFAULT_THEME);
+        let gfx_model = cli.gfx_model.or(file.gfx_model).unwrap_or(DEFAULT_GFX_MODEL);
 
         Self::sanitised(
             min_dpi,
@@ -175,6 +185,7 @@ impl Config {
             transition_speed,
             aa_video_transition_speed,
             theme,
+            gfx_model,
             path,
         )
     }
@@ -194,6 +205,7 @@ impl Config {
         transition_speed: f32,
         aa_video_transition_speed: f32,
         theme: i32,
+        gfx_model: i32,
         path: PathBuf,
     ) -> Self {
         let mut min_dpi = min_dpi.max(1);
@@ -224,6 +236,7 @@ impl Config {
             aa_video_transition_speed: aa_video_transition_speed
                 .clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
             theme: theme.max(0),
+            gfx_model: gfx_model.clamp(0, 2),
             path,
         }
     }
@@ -242,6 +255,7 @@ impl Config {
             transition_speed: Some(self.transition_speed),
             aa_video_transition_speed: Some(self.aa_video_transition_speed),
             theme: Some(self.theme),
+            gfx_model: Some(self.gfx_model),
         };
         match toml::to_string_pretty(&file) {
             Ok(contents) => {

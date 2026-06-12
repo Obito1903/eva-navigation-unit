@@ -153,6 +153,17 @@ pub(crate) fn wire(
         });
     }
 
+    // ── GL underlay model: Settings UI → config ───────────────────────────
+    {
+        let cfg = cfg.clone();
+        window.on_gfx_model_changed(move |model| {
+            log::info!("Background model set to {model}");
+            let mut cfg = cfg.borrow_mut();
+            cfg.gfx_model = model;
+            cfg.save();
+        });
+    }
+
     // ── Start android-auto in background ──────────────────────────────────
     let mut container = AndroidAutoContainer::new(setup, wireless.clone(), video.clone());
 

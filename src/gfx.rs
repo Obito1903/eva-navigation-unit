@@ -147,7 +147,9 @@ struct Underlay {
     // Sphere pass.
     program: glow::Program,
     vbo: glow::Buffer,
-    vertex_count: i32,
+    // Per-model `(start_vertex, vertex_count)` ranges into `vbo`, indexed by the
+    // `gfx-model` selector: 0 = sphere, 1 = cube, 2 = car.
+    models: Vec<(i32, i32)>,
     pos_location: u32,
     u_time: glow::UniformLocation,
     u_aspect: glow::UniformLocation,
@@ -200,8 +202,21 @@ impl Underlay {
             // ── Sphere program + geometry ─────────────────────────────────
             let program = build_program(&gl, VERTEX_SHADER, FRAGMENT_SHADER);
 
-            let vertices = build_sphere_wireframe();
-            let vertex_count = (vertices.len() / 3) as i32;
+            // Pack every wireframe model into one buffer; record each model's
+            // vertex range so `render` can draw whichever is selected.
+            let mut vertices: Vec<f32> = Vec::new();
+            let mut models: Vec<(i32, i32)> = Vec::new();
+            for model in [
+                build_sphere_wireframe(),
+                build_cube_wireframe(),
+                build_car_wireframe(),
+                build_speaker_wireframe(),
+            ] {
+                let start = (vertices.len() / 3) as i32;
+                let count = (model.len() / 3) as i32;
+                vertices.extend_from_slice(&model);
+                models.push((start, count));
+            }
 
             let vbo = gl.create_buffer().expect("create_buffer");
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
@@ -247,7 +262,7 @@ impl Underlay {
                 gl,
                 program,
                 vbo,
-                vertex_count,
+                models,
                 pos_location,
                 u_time,
                 u_aspect,
@@ -303,9 +318,10 @@ impl Underlay {
     }
 
     /// Clear the framebuffer to black and, when `enabled`, render the rotating
-    /// wireframe sphere into an offscreen target and composite it back through
-    /// the frosted-glass pass. `offset_x` shifts the sphere horizontally in NDC
+    /// wireframe model into an offscreen target and composite it back through
+    /// the frosted-glass pass. `offset_x` shifts the model horizontally in NDC
     /// so it can center on the content area instead of the whole window.
+    /// `model` selects which wireframe to draw (0 = sphere, 1 = cube, 2 = car).
     fn render(
         &mut self,
         width: u32,
@@ -313,6 +329,7 @@ impl Underlay {
         time: f32,
         color: (f32, f32, f32),
         offset_x: f32,
+        model: i32,
         enabled: bool,
     ) {
         if !enabled {
@@ -358,7 +375,12 @@ impl Underlay {
             gl.uniform_1_f32(Some(&self.u_aspect), aspect);
             gl.uniform_2_f32(Some(&self.u_offset), offset_x, 0.0);
             gl.uniform_3_f32(Some(&self.u_color), color.0, color.1, color.2);
-            gl.draw_arrays(glow::LINES, 0, self.vertex_count);
+            let (start, count) = self
+                .models
+                .get(model.max(0) as usize)
+                .copied()
+                .unwrap_or(self.models[0]);
+            gl.draw_arrays(glow::LINES, start, count);
             gl.disable_vertex_attrib_array(self.pos_location);
 
             // ── Pass 2: frosted-glass composite → femtovg's framebuffer ───
@@ -442,6 +464,238 @@ fn build_sphere_wireframe() -> Vec<f32> {
     v
 }
 
+/// Append a line segment (two endpoints) to a `GL_LINES` vertex list.
+fn edge(v: &mut Vec<f32>, a: [f32; 3], b: [f32; 3]) {
+    v.extend_from_slice(&a);
+    v.extend_from_slice(&b);
+}
+
+/// Append the 12 edges of an axis-aligned box spanning `min`..`max`.
+fn box_edges(v: &mut Vec<f32>, min: [f32; 3], max: [f32; 3]) {
+    let [x0, y0, z0] = min;
+    let [x1, y1, z1] = max;
+    // 8 corners.
+    let c = [
+        [x0, y0, z0],
+        [x1, y0, z0],
+        [x1, y1, z0],
+        [x0, y1, z0],
+        [x0, y0, z1],
+        [x1, y0, z1],
+        [x1, y1, z1],
+        [x0, y1, z1],
+    ];
+    // Bottom face, top face, then the 4 vertical pillars.
+    let pairs = [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4),
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),
+    ];
+    for (a, b) in pairs {
+        edge(v, c[a], c[b]);
+    }
+}
+
+/// Build a unit-cube wireframe (the 12 edges of a cube centered on the origin)
+/// as a `GL_LINES` vertex list.
+fn build_cube_wireframe() -> Vec<f32> {
+    let mut v: Vec<f32> = Vec::new();
+    box_edges(&mut v, [-0.8, -0.8, -0.8], [0.8, 0.8, 0.8]);
+    v
+}
+
+/// Build a stylized wireframe sports car in the spirit of a Renault Alpine
+/// A310 — a wedge fastback with a low pointed nose, raked windshield, short
+/// tapered greenhouse and a long sloping tail. Returned as a `GL_LINES` vertex
+/// list, centered on the origin and scaled to roughly fit the same view volume
+/// as the sphere/cube.
+fn build_car_wireframe() -> Vec<f32> {
+    use std::f32::consts::PI;
+    let mut v: Vec<f32> = Vec::new();
+
+    // ── Body shell ────────────────────────────────────────────────────────
+    // Side silhouette as a closed loop of `[x, y, half_width]` points.
+    //   x: +front .. -rear,  y: up,  half_width: body half-thickness in z.
+    // More points than a box give the wedge profile its curves: a dropped nose,
+    // rising fender, raked screen, short roof and long fastback tail.
+    let profile: [[f32; 3]; 18] = [
+        [1.18, -0.10, 0.22],  // nose tip top (narrow, low)
+        [1.10, 0.02, 0.34],   // hood leading edge
+        [0.82, 0.06, 0.46],   // front fender crest
+        [0.50, 0.07, 0.50],   // cowl / base of windshield
+        [0.30, 0.22, 0.44],   // mid windshield
+        [0.12, 0.40, 0.34],   // windshield top (greenhouse)
+        [-0.10, 0.42, 0.34],  // roof mid
+        [-0.32, 0.41, 0.34],  // roof rear (greenhouse)
+        [-0.58, 0.30, 0.44],  // backlight / rear glass
+        [-0.82, 0.16, 0.48],  // rear haunch
+        [-1.05, 0.04, 0.44],  // tail top
+        [-1.15, -0.06, 0.42], // tail edge
+        [-1.13, -0.24, 0.42], // tail bottom
+        [-0.80, -0.30, 0.50], // rear sill
+        [0.00, -0.32, 0.52],  // floor pan mid
+        [0.80, -0.30, 0.50],  // front sill
+        [1.10, -0.24, 0.30],  // nose bottom
+        [1.18, -0.18, 0.24],  // nose lip
+    ];
+
+    let n = profile.len();
+    // Left + right side outlines, plus a rib joining the two sides at each
+    // vertex (these ribs also form the windshield, roof and tail cross-sections).
+    for i in 0..n {
+        let a = profile[i];
+        let b = profile[(i + 1) % n];
+        edge(&mut v, [a[0], a[1], -a[2]], [b[0], b[1], -b[2]]);
+        edge(&mut v, [a[0], a[1], a[2]], [b[0], b[1], b[2]]);
+        edge(&mut v, [a[0], a[1], -a[2]], [a[0], a[1], a[2]]);
+    }
+
+    // ── Greenhouse / side windows ───────────────────────────────────────────
+    // A tapered glasshouse outline drawn just inboard of each flank so the
+    // cabin reads as glazed. Points: windshield base → top → roof rear →
+    // backlight base → belt line, back to start.
+    let glass: [[f32; 2]; 5] = [
+        [0.46, 0.10],   // A-pillar base
+        [0.14, 0.39],   // A-pillar top
+        [-0.34, 0.40],  // C-pillar top
+        [-0.56, 0.28],  // C-pillar base
+        [-0.30, 0.18],  // belt line return
+    ];
+    let glass_hw = 0.40;
+    for hw in [-glass_hw, glass_hw] {
+        for i in 0..glass.len() {
+            let a = glass[i];
+            let b = glass[(i + 1) % glass.len()];
+            edge(&mut v, [a[0], a[1], hw], [b[0], b[1], hw]);
+        }
+    }
+    // Door-glass divider (B-pillar) for a two-window look.
+    for hw in [-glass_hw, glass_hw] {
+        edge(&mut v, [-0.06, 0.41, hw], [-0.06, 0.17, hw]);
+    }
+
+    // ── Longitudinal creases ────────────────────────────────────────────────
+    // Belt line and a lower body crease give the flanks definition.
+    let belt = [
+        [1.08_f32, -0.02],
+        [0.48, 0.06],
+        [-0.30, 0.14],
+        [-1.04, 0.02],
+    ];
+    let lower = [
+        [1.10_f32, -0.18],
+        [0.40, -0.14],
+        [-0.40, -0.12],
+        [-1.06, -0.16],
+    ];
+    for line in [&belt, &lower] {
+        for hw in [-0.49_f32, 0.49] {
+            for i in 0..line.len() - 1 {
+                edge(
+                    &mut v,
+                    [line[i][0], line[i][1], hw],
+                    [line[i + 1][0], line[i + 1][1], hw],
+                );
+            }
+        }
+    }
+
+    // ── Lights ───────────────────────────────────────────────────────────────
+    // Front: a pair of small ellipse-ish circles per side. Rear: short bars.
+    for &(cx, cy, hw, r) in &[
+        (1.02_f32, 0.04_f32, 0.30_f32, 0.07_f32),
+        (1.02, 0.04, 0.42, 0.07),
+    ] {
+        for hw in [-hw, hw] {
+            for s in 0..12 {
+                let a0 = 2.0 * PI * (s as f32) / 12.0;
+                let a1 = 2.0 * PI * ((s + 1) as f32) / 12.0;
+                edge(
+                    &mut v,
+                    [cx + r * a0.cos() * 0.7, cy + r * a0.sin(), hw],
+                    [cx + r * a1.cos() * 0.7, cy + r * a1.sin(), hw],
+                );
+            }
+        }
+    }
+    // Rear light bar across the tail.
+    for y in [-0.02_f32, 0.06] {
+        edge(&mut v, [-1.13, y, -0.34], [-1.13, y, 0.34]);
+    }
+
+    // ── Wheel arches + wheels ─────────────────────────────────────────────────
+    let wheel_r = 0.26;
+    let arch_r = 0.32;
+    let wheel_seg = 24;
+    let arch_hw = 0.50; // flank position for the arch outline
+    let wheels = [
+        [0.62_f32, -0.28],  // front axle (x, y)
+        [-0.62, -0.28],     // rear axle
+    ];
+    for w in wheels {
+        let (cx, cy) = (w[0], w[1]);
+        // Wheel-arch: an upper half-circle cut into each flank.
+        for hw in [-arch_hw, arch_hw] {
+            for s in 0..12 {
+                let a0 = PI * (s as f32) / 12.0;
+                let a1 = PI * ((s + 1) as f32) / 12.0;
+                edge(
+                    &mut v,
+                    [cx + arch_r * a0.cos(), cy + arch_r * a0.sin(), hw],
+                    [cx + arch_r * a1.cos(), cy + arch_r * a1.sin(), hw],
+                );
+            }
+        }
+        // The two wheels on this axle, with a hub + spokes.
+        for hw in [-0.50_f32, 0.50] {
+            wheel_disc(&mut v, cx, cy, hw, wheel_r, wheel_seg);
+        }
+    }
+
+    v
+}
+
+/// Append a wireframe wheel at `(cx, cy, z)`: a tyre circle, a hub circle and
+/// four spokes, drawn in the X/Y plane.
+fn wheel_disc(v: &mut Vec<f32>, cx: f32, cy: f32, z: f32, r: f32, seg: usize) {
+    use std::f32::consts::PI;
+    let hub = r * 0.4;
+    for s in 0..seg {
+        let a0 = 2.0 * PI * (s as f32) / (seg as f32);
+        let a1 = 2.0 * PI * ((s + 1) as f32) / (seg as f32);
+        // Tyre.
+        edge(
+            v,
+            [cx + r * a0.cos(), cy + r * a0.sin(), z],
+            [cx + r * a1.cos(), cy + r * a1.sin(), z],
+        );
+        // Hub.
+        edge(
+            v,
+            [cx + hub * a0.cos(), cy + hub * a0.sin(), z],
+            [cx + hub * a1.cos(), cy + hub * a1.sin(), z],
+        );
+    }
+    // Four spokes from hub to rim.
+    for k in 0..4 {
+        let a = 2.0 * PI * (k as f32) / 4.0 + PI / 4.0;
+        edge(
+            v,
+            [cx + hub * a.cos(), cy + hub * a.sin(), z],
+            [cx + r * a.cos(), cy + r * a.sin(), z],
+        );
+    }
+}
+
 /// Reinterpret an `f32` slice as bytes for `buffer_data_u8_slice`.
 fn bytemuck_cast(data: &[f32]) -> &[u8] {
     // Safety: `f32` has no padding/invalid bit patterns and `u8` has alignment
@@ -490,6 +744,7 @@ pub(crate) fn install(window: &AppWindow) {
                     let size = win.window().size();
                     let time = start.elapsed().as_secs_f32();
                     let color = theme_color(&win);
+                    let model = win.get_gfx_model();
                     // Center the sphere on the content area (right of the
                     // sidebar): the content center sits `sidebar_px / width`
                     // to the right of the window center in NDC.
@@ -499,7 +754,7 @@ pub(crate) fn install(window: &AppWindow) {
                     } else {
                         SIDEBAR_W * scale / size.width as f32
                     };
-                    underlay.render(size.width, size.height, time, color, offset_x, enabled);
+                    underlay.render(size.width, size.height, time, color, offset_x, model, enabled);
                     if enabled {
                         // Keep the animation going.
                         win.window().request_redraw();

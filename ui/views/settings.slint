@@ -6,7 +6,11 @@ import { SettingsUiTab } from "settings_ui.slint";
 
 // System / settings view with category tabs.
 export component SettingsView inherits Rectangle {
-    background: Theme.bg;
+    // When the GL wireframe-sphere underlay is on, use a slightly opaque
+    // background so the sphere shows through faintly behind the settings;
+    // otherwise fall back to the solid theme background.
+    in property <bool> gfx-bg-enabled: false;
+    background: root.gfx-bg-enabled ? Theme.bg.with-alpha(0.45) : Theme.bg;
 
     // 0 = Android Auto  |  1 = UI
     in-out property <int> active-tab: 0;

@@ -98,7 +98,7 @@ export component AppWindow inherits Window {
         // ── Content area ──────────────────────────────────────────────────
         Rectangle {
             horizontal-stretch: 1;
-            background: root.gfx-bg-enabled ? transparent : Theme.bg;
+            background: transparent;
             clip: true;
 
             // View 0 — Android Auto (slides in from the left)
@@ -133,6 +133,7 @@ export component AppWindow inherits Window {
                 SettingsView {
                     width: 100%;
                     height: 100%;
+                    gfx-bg-enabled: root.gfx-bg-enabled;
                     aa-dpi <=> root.aa-dpi;
                     aa-min-dpi <=> root.aa-min-dpi;
                     aa-max-dpi <=> root.aa-max-dpi;

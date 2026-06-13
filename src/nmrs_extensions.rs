@@ -40,6 +40,17 @@ pub async fn start_hotspot(ssid: String, psk: String, wifi_dev_path: &str) -> Re
         .wpa_psk(&psk)
         .autoconnect(false)
         .mode(nmrs::builders::WifiMode::Ap)
+        // Android Auto wireless only works over a 5 GHz access point; a 2.4 GHz
+        // AP lets the phone associate but it abandons the link during DHCP
+        // provisioning, so projection never starts. Force the 5 GHz band.
+        //
+        // The channel is deliberately left unset so wpa_supplicant's automatic
+        // channel selection picks a 5 GHz channel that is valid for the host's
+        // regulatory domain. Pinning a fixed channel (e.g. UNII-1 ch 36) breaks
+        // in regions where that channel is not permitted — e.g. under the FR
+        // domain only DFS channels are allowed, so a hard-coded ch 36 request
+        // is dropped and NM falls all the way back to 2.4 GHz.
+        .band(nmrs::builders::WifiBand::A)
         // An access point must use NetworkManager's "shared" IPv4 method so NM
         // assigns the 10.42.0.1/24 gateway address and runs a DHCP/DNS server
         // (dnsmasq) for clients. Without this NM defaults to "auto", runs a

@@ -1,0 +1,124 @@
+import { Theme } from "../theme.slint";
+import { Dropdown } from "../components/dropdown.slint";
+
+// WiFi / Bluetooth category settings tab. Hosts the Wi-Fi hotspot backend
+// selector (NetworkManager vs hostapd) and the hostapd channel.
+export component SettingsWifiBtTab inherits Rectangle {
+    background: transparent;
+
+    // Hotspot backend: 0 = NetworkManager | 1 = hostapd.
+    in-out property <int> hotspot-backend: 0;
+    callback hotspot-backend-changed(int);
+
+    // 5 GHz channel for the hostapd backend (0 = automatic). Map of dropdown
+    // index -> channel is handled in the selected() handler below.
+    in-out property <int> hotspot-channel: 36;
+    callback hotspot-channel-changed(int);
+
+    VerticalLayout {
+        alignment: start;
+        padding: 24px;
+        spacing: 20px;
+
+        Text {
+            text: "WIFI / BT";
+            color: Theme.text;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 3px;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.red-dim;
+        }
+
+        // ── Hotspot ───────────────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "HOTSPOT";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            // Backend selector
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "BACKEND";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 220px;
+                    options: ["NETWORKMANAGER", "HOSTAPD"];
+                    current-index: root.hotspot-backend == 1 ? 1 : 0;
+                    selected(i) => {
+                        root.hotspot-backend = i;
+                        root.hotspot-backend-changed(i);
+                    }
+                }
+            }
+
+            // hostapd channel selector (only relevant for the hostapd backend)
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "HOSTAPD CHANNEL";
+                    color: root.hotspot-backend == 1 ? Theme.text : Theme.text-mute;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 220px;
+                    // Index → channel: 0=Auto, 1=36, 2=40, 3=44, 4=48,
+                    // 5=149, 6=153, 7=157, 8=161, 9=100(DFS).
+                    options: ["AUTO (5 GHz)", "36", "40", "44", "48", "149", "153", "157", "161", "100 (DFS)"];
+                    current-index:
+                        root.hotspot-channel == 36 ? 1 :
+                        root.hotspot-channel == 40 ? 2 :
+                        root.hotspot-channel == 44 ? 3 :
+                        root.hotspot-channel == 48 ? 4 :
+                        root.hotspot-channel == 149 ? 5 :
+                        root.hotspot-channel == 153 ? 6 :
+                        root.hotspot-channel == 157 ? 7 :
+                        root.hotspot-channel == 161 ? 8 :
+                        root.hotspot-channel == 100 ? 9 : 0;
+                    selected(i) => {
+                        root.hotspot-channel =
+                            i == 1 ? 36 :
+                            i == 2 ? 40 :
+                            i == 3 ? 44 :
+                            i == 4 ? 48 :
+                            i == 5 ? 149 :
+                            i == 6 ? 153 :
+                            i == 7 ? 157 :
+                            i == 8 ? 161 :
+                            i == 9 ? 100 : 0;
+                        root.hotspot-channel-changed(root.hotspot-channel);
+                    }
+                }
+            }
+
+            Text {
+                text: "Hostapd drives the radio directly and can host 5 GHz / DFS access points on capable hardware, but requires the hostapd and dnsmasq tools and elevated privileges. NetworkManager is the safer default.";
+                color: Theme.text-mute;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

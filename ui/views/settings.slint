@@ -3,6 +3,7 @@ import { HudPanel } from "../components/hud_panel.slint";
 import { GlowText } from "../components/glow_text.slint";
 import { SettingsAndroidAutoTab } from "settings_android_auto.slint";
 import { SettingsUiTab } from "settings_ui.slint";
+import { SettingsWifiBtTab } from "settings_wifi_bt.slint";
 
 // System / settings view with category tabs.
 export component SettingsView inherits Rectangle {
@@ -12,7 +13,7 @@ export component SettingsView inherits Rectangle {
     in property <bool> gfx-bg-enabled: false;
     background: root.gfx-bg-enabled ? Theme.bg.with-alpha(0.45) : Theme.bg;
 
-    // 0 = Android Auto  |  1 = UI
+    // 0 = Android Auto  |  1 = UI  |  2 = WiFi/BT
     in-out property <int> active-tab: 0;
 
     // Android Auto DPI (exposed for Rust binding)
@@ -62,6 +63,14 @@ export component SettingsView inherits Rectangle {
     // Whether the window is shown in fullscreen mode.
     in-out property <bool> fullscreen: false;
     callback fullscreen-changed(bool);
+
+    // Wi-Fi hotspot backend: 0 = NetworkManager | 1 = hostapd.
+    in-out property <int> hotspot-backend: 0;
+    callback hotspot-backend-changed(int);
+
+    // 5 GHz channel for the hostapd hotspot backend (0 = automatic).
+    in-out property <int> hotspot-channel: 36;
+    callback hotspot-channel-changed(int);
 
     HudPanel {
         width: 100%;
@@ -127,6 +136,31 @@ export component SettingsView inherits Rectangle {
                         TouchArea {
                             clicked => {
                                 root.active-tab = 1;
+                            }
+                        }
+                    }
+
+                    // Tab: WiFi/BT
+                    Rectangle {
+                        width: tab-wifibt-text.preferred-width + 32px;
+                        height: 36px;
+                        background: root.active-tab == 2 ? Theme.red-dim : transparent;
+                        border-width: 1px;
+                        border-color: root.active-tab == 2 ? Theme.red : Theme.red-dim;
+
+                        tab-wifibt-text := Text {
+                            text: "WIFI/BT";
+                            color: root.active-tab == 2 ? Theme.text : Theme.text-mute;
+                            font-size: 12px;
+                            font-weight: 700;
+                            letter-spacing: 2px;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                root.active-tab = 2;
                             }
                         }
                     }
@@ -201,6 +235,19 @@ export component SettingsView inherits Rectangle {
                     fullscreen <=> root.fullscreen;
                     fullscreen-changed(on) => {
                         root.fullscreen-changed(on);
+                    }
+                }
+
+                if root.active-tab == 2 : SettingsWifiBtTab {
+                    width: 100%;
+                    height: 100%;
+                    hotspot-backend <=> root.hotspot-backend;
+                    hotspot-backend-changed(v) => {
+                        root.hotspot-backend-changed(v);
+                    }
+                    hotspot-channel <=> root.hotspot-channel;
+                    hotspot-channel-changed(v) => {
+                        root.hotspot-channel-changed(v);
                     }
                 }
             }

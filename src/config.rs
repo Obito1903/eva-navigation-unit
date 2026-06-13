@@ -42,6 +42,11 @@ pub(crate) const DEFAULT_THEME: i32 = 0;
 pub(crate) const DEFAULT_GFX_MODEL: i32 = 0;
 /// Whether the window starts in fullscreen mode by default.
 pub(crate) const DEFAULT_FULLSCREEN: bool = false;
+/// Default Wi-Fi hotspot backend (0 = NetworkManager | 1 = hostapd).
+pub(crate) const DEFAULT_HOTSPOT_BACKEND: i32 = 0;
+/// Default 5 GHz channel used by the hostapd hotspot backend (0 = automatic).
+/// Ignored by the NetworkManager backend.
+pub(crate) const DEFAULT_HOTSPOT_CHANNEL: i32 = 36;
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -107,6 +112,14 @@ struct Cli {
     /// Display the window in fullscreen mode.
     #[arg(long, env = "EVA_FULLSCREEN")]
     fullscreen: Option<bool>,
+
+    /// Wi-Fi hotspot backend (0 = NetworkManager | 1 = hostapd).
+    #[arg(long, env = "EVA_HOTSPOT_BACKEND")]
+    hotspot_backend: Option<i32>,
+
+    /// 5 GHz channel for the hostapd hotspot backend (0 = automatic).
+    #[arg(long, env = "EVA_HOTSPOT_CHANNEL")]
+    hotspot_channel: Option<i32>,
 }
 
 /// Shape of the optional TOML configuration file.
@@ -126,6 +139,8 @@ struct FileConfig {
     theme: Option<i32>,
     gfx_model: Option<i32>,
     fullscreen: Option<bool>,
+    hotspot_backend: Option<i32>,
+    hotspot_channel: Option<i32>,
 }
 
 /// Fully resolved runtime configuration.
@@ -148,6 +163,10 @@ pub(crate) struct Config {
     pub(crate) gfx_model: i32,
     /// Whether the window is shown in fullscreen mode.
     pub(crate) fullscreen: bool,
+    /// Wi-Fi hotspot backend (0 = NetworkManager | 1 = hostapd).
+    pub(crate) hotspot_backend: i32,
+    /// 5 GHz channel for the hostapd hotspot backend (0 = automatic).
+    pub(crate) hotspot_channel: i32,
     /// Path the configuration is loaded from and saved back to.
     pub(crate) path: PathBuf,
 }
@@ -194,6 +213,14 @@ impl Config {
             .fullscreen
             .or(file.fullscreen)
             .unwrap_or(DEFAULT_FULLSCREEN);
+        let hotspot_backend = cli
+            .hotspot_backend
+            .or(file.hotspot_backend)
+            .unwrap_or(DEFAULT_HOTSPOT_BACKEND);
+        let hotspot_channel = cli
+            .hotspot_channel
+            .or(file.hotspot_channel)
+            .unwrap_or(DEFAULT_HOTSPOT_CHANNEL);
 
         Self::sanitised(
             min_dpi,
@@ -210,6 +237,8 @@ impl Config {
             theme,
             gfx_model,
             fullscreen,
+            hotspot_backend,
+            hotspot_channel,
             path,
         )
     }
@@ -232,6 +261,8 @@ impl Config {
         theme: i32,
         gfx_model: i32,
         fullscreen: bool,
+        hotspot_backend: i32,
+        hotspot_channel: i32,
         path: PathBuf,
     ) -> Self {
         let mut min_dpi = min_dpi.max(1);
@@ -265,6 +296,8 @@ impl Config {
             theme: theme.max(0),
             gfx_model: gfx_model.clamp(0, 3),
             fullscreen,
+            hotspot_backend: hotspot_backend.clamp(0, 1),
+            hotspot_channel: hotspot_channel.max(0),
             path,
         }
     }
@@ -286,6 +319,8 @@ impl Config {
             theme: Some(self.theme),
             gfx_model: Some(self.gfx_model),
             fullscreen: Some(self.fullscreen),
+            hotspot_backend: Some(self.hotspot_backend),
+            hotspot_channel: Some(self.hotspot_channel),
         };
         match toml::to_string_pretty(&file) {
             Ok(contents) => {

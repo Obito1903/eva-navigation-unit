@@ -32,6 +32,14 @@ export component AppWindow inherits Window {
     in-out property <bool> fullscreen: false;
     callback fullscreen-changed(bool);
 
+    // Wi-Fi hotspot backend: 0 = NetworkManager | 1 = hostapd.
+    in-out property <int> hotspot-backend: 0;
+    callback hotspot-backend-changed(int);
+
+    // 5 GHz channel for the hostapd hotspot backend (0 = automatic).
+    in-out property <int> hotspot-channel: 36;
+    callback hotspot-channel-changed(int);
+
     // Selects the wireframe model drawn by the GL underlay:
     // 0 = sphere | 1 = cube | 2 = car.
     in-out property <int> gfx-model: 0;
@@ -207,6 +215,14 @@ export component AppWindow inherits Window {
                     fullscreen <=> root.fullscreen;
                     fullscreen-changed(on) => {
                         root.fullscreen-changed(on);
+                    }
+                    hotspot-backend <=> root.hotspot-backend;
+                    hotspot-backend-changed(v) => {
+                        root.hotspot-backend-changed(v);
+                    }
+                    hotspot-channel <=> root.hotspot-channel;
+                    hotspot-channel-changed(v) => {
+                        root.hotspot-channel-changed(v);
                     }
                 }
             }

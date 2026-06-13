@@ -23,6 +23,7 @@ mod audio;
 mod config;
 mod container;
 mod gfx;
+mod hostapd;
 mod messages;
 mod nmrs_extensions;
 mod protocol;
@@ -76,6 +77,8 @@ fn main() -> Result<(), slint::PlatformError> {
     Theme::get(&window).set_theme_id(cfg.theme);
     window.set_gfx_model(cfg.gfx_model);
     window.set_fullscreen(cfg.fullscreen);
+    window.set_hotspot_backend(cfg.hotspot_backend);
+    window.set_hotspot_channel(cfg.hotspot_channel);
 
     ui::wire(&window, setup, cfg);
     gfx::install(&window);

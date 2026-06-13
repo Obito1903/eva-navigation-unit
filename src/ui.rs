@@ -82,6 +82,38 @@ pub(crate) fn wire(
         });
     }
 
+    // ── Hotspot backend: Settings UI → worker ─────────────────────────────
+    // 0 = NetworkManager | 1 = hostapd. Applied on the next (re)connection.
+    let hotspot_backend = Arc::new(AtomicI32::new(cfg.borrow().hotspot_backend));
+    {
+        let hotspot_backend = hotspot_backend.clone();
+        let cfg = cfg.clone();
+        window.on_hotspot_backend_changed(move |backend| {
+            log::info!(
+                "Hotspot backend set to {} (applies on next connection)",
+                if backend == 1 { "hostapd" } else { "NetworkManager" }
+            );
+            hotspot_backend.store(backend, Ordering::Relaxed);
+            let mut cfg = cfg.borrow_mut();
+            cfg.hotspot_backend = backend;
+            cfg.save();
+        });
+    }
+
+    // ── Hotspot channel: Settings UI → worker ─────────────────────────────
+    let hotspot_channel = Arc::new(AtomicI32::new(cfg.borrow().hotspot_channel));
+    {
+        let hotspot_channel = hotspot_channel.clone();
+        let cfg = cfg.clone();
+        window.on_hotspot_channel_changed(move |channel| {
+            log::info!("Hotspot (hostapd) channel set to {channel} (applies on next connection)");
+            hotspot_channel.store(channel, Ordering::Relaxed);
+            let mut cfg = cfg.borrow_mut();
+            cfg.hotspot_channel = channel;
+            cfg.save();
+        });
+    }
+
     // ── Resolution: Settings UI → config + worker ─────────────────────────
     {
         let video = video.clone();
@@ -190,7 +222,14 @@ pub(crate) fn wire(
     }
 
     // ── Start android-auto in background ──────────────────────────────────
-    let mut container = AndroidAutoContainer::new(setup, wireless.clone(), usb.clone(), video.clone());
+    let mut container = AndroidAutoContainer::new(
+        setup,
+        wireless.clone(),
+        usb.clone(),
+        video.clone(),
+        hotspot_backend.clone(),
+        hotspot_channel.clone(),
+    );
 
     // The worker is torn down and recreated on every disconnect, which makes a
     // fresh message channel each time. Touch input must always target the
@@ -232,7 +271,14 @@ pub(crate) fn wire(
                     // Pick up the latest screen size so the renegotiated stream
                     // matches the current window aspect ratio.
                     refresh_screen_size(&win, &video);
-                    container = AndroidAutoContainer::new(setup, wireless.clone(), usb.clone(), video.clone());
+                    container = AndroidAutoContainer::new(
+                        setup,
+                        wireless.clone(),
+                        usb.clone(),
+                        video.clone(),
+                        hotspot_backend.clone(),
+                        hotspot_channel.clone(),
+                    );
                     // Point touch input at the new worker's channel.
                     *send_touch.borrow_mut() = container.send.clone();
                 }

@@ -40,6 +40,8 @@ impl AndroidAutoContainer {
         wireless: Arc<AtomicBool>,
         usb: Arc<AtomicBool>,
         video: Arc<VideoSettings>,
+        hotspot_backend: Arc<AtomicI32>,
+        hotspot_channel: Arc<AtomicI32>,
     ) -> Self {
         let to_async = tokio::sync::mpsc::channel(50);
         let from_async = tokio::sync::mpsc::channel(50);
@@ -59,13 +61,19 @@ impl AndroidAutoContainer {
                 // and requiring it here would abort the worker (and USB too).
                 let hotspot_ssid = "Hotspot".to_string();
                 let hotspot_psk = "qwertyuiop".to_string();
+                // Keeps the hostapd/dnsmasq processes alive for the lifetime of
+                // this worker; dropping it tears the AP down. `None` for the
+                // NetworkManager backend (NM owns the AP connection instead).
+                let mut _hotspot_guard: Option<crate::hostapd::HostapdHandle> = None;
                 let wifi_mac = if wireless.load(Ordering::Relaxed) {
                     // Wireless setup must never abort the worker: some devices
                     // have wifi hardware that cannot host an AP (e.g. Broadcom
                     // FullMAC `brcmfmac` chips whose firmware lacks AP mode).
                     // If anything here fails we log a warning and fall back to
                     // USB-only Android Auto instead of panicking.
-                    async {
+                    let backend = hotspot_backend.load(Ordering::Relaxed);
+                    let channel = hotspot_channel.load(Ordering::Relaxed);
+                    match async {
                         let wifi = nmrs::NetworkManager::new()
                             .await
                             .map_err(|e| format!("NetworkManager unavailable: {e}"))?;
@@ -75,23 +83,47 @@ impl AndroidAutoContainer {
                                 .find(|d| d.device_type == nmrs::DeviceType::Wifi)
                                 .ok_or_else(|| "No wifi device found".to_string())?
                         };
-                        nmrs_extensions::start_hotspot(
-                            hotspot_ssid.clone(),
-                            hotspot_psk.clone(),
-                            &wifi_dev.path,
-                        )
-                        .await
-                        .map_err(|e| format!("Failed to start wifi hotspot: {e}"))?;
-                        Ok::<String, String>(wifi_dev.identity.current_mac.clone())
+                        let mac = wifi_dev.identity.current_mac.clone();
+                        let guard = if backend == 1 {
+                            // hostapd backend: drives the radio directly. Needs
+                            // the kernel interface name and elevated privileges.
+                            log::info!("Starting hotspot via hostapd backend");
+                            let handle = crate::hostapd::HostapdHandle::start(
+                                &wifi_dev.interface,
+                                &hotspot_ssid,
+                                &hotspot_psk,
+                                channel,
+                            )
+                            .map_err(|e| format!("hostapd hotspot failed: {e}"))?;
+                            Some(handle)
+                        } else {
+                            // NetworkManager backend (default).
+                            log::info!("Starting hotspot via NetworkManager backend");
+                            nmrs_extensions::start_hotspot(
+                                hotspot_ssid.clone(),
+                                hotspot_psk.clone(),
+                                &wifi_dev.path,
+                            )
+                            .await
+                            .map_err(|e| format!("Failed to start wifi hotspot: {e}"))?;
+                            None
+                        };
+                        Ok::<(String, Option<crate::hostapd::HostapdHandle>), String>((mac, guard))
                     }
                     .await
-                    .unwrap_or_else(|e| {
-                        log::warn!(
-                            "Wireless Android Auto setup failed ({e}); \
-                             falling back to USB-only"
-                        );
-                        String::new()
-                    })
+                    {
+                        Ok((mac, guard)) => {
+                            _hotspot_guard = guard;
+                            mac
+                        }
+                        Err(e) => {
+                            log::warn!(
+                                "Wireless Android Auto setup failed ({e}); \
+                                 falling back to USB-only"
+                            );
+                            String::new()
+                        }
+                    }
                 } else {
                     log::info!("Wireless Android Auto disabled — skipping wifi setup");
                     String::new()

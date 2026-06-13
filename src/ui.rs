@@ -68,6 +68,20 @@ pub(crate) fn wire(
         });
     }
 
+    // ── USB toggle: Settings UI → worker ──────────────────────────────────
+    let usb = Arc::new(AtomicBool::new(cfg.borrow().usb));
+    {
+        let usb = usb.clone();
+        let cfg = cfg.clone();
+        window.on_aa_usb_changed(move |enabled| {
+            log::info!("USB Android Auto {}", if enabled { "enabled" } else { "disabled" });
+            usb.store(enabled, Ordering::Relaxed);
+            let mut cfg = cfg.borrow_mut();
+            cfg.usb = enabled;
+            cfg.save();
+        });
+    }
+
     // ── Resolution: Settings UI → config + worker ─────────────────────────
     {
         let video = video.clone();
@@ -176,7 +190,7 @@ pub(crate) fn wire(
     }
 
     // ── Start android-auto in background ──────────────────────────────────
-    let mut container = AndroidAutoContainer::new(setup, wireless.clone(), video.clone());
+    let mut container = AndroidAutoContainer::new(setup, wireless.clone(), usb.clone(), video.clone());
 
     // The worker is torn down and recreated on every disconnect, which makes a
     // fresh message channel each time. Touch input must always target the
@@ -218,7 +232,7 @@ pub(crate) fn wire(
                     // Pick up the latest screen size so the renegotiated stream
                     // matches the current window aspect ratio.
                     refresh_screen_size(&win, &video);
-                    container = AndroidAutoContainer::new(setup, wireless.clone(), video.clone());
+                    container = AndroidAutoContainer::new(setup, wireless.clone(), usb.clone(), video.clone());
                     // Point touch input at the new worker's channel.
                     *send_touch.borrow_mut() = container.send.clone();
                 }

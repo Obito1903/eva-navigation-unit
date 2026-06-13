@@ -72,6 +72,10 @@ export component AppWindow inherits Window {
     in-out property <bool> aa-wireless-enabled: true;
     callback aa-wireless-changed(bool);
 
+    // USB (wired) Android Auto enable/disable
+    in-out property <bool> aa-usb-enabled: true;
+    callback aa-usb-changed(bool);
+
     // Android Auto video resolution (720 or 1080 vertical lines)
     in-out property <int> aa-resolution: 720;
     callback aa-resolution-changed(int);
@@ -187,6 +191,10 @@ export component AppWindow inherits Window {
                     aa-wireless-enabled <=> root.aa-wireless-enabled;
                     aa-wireless-changed(on) => {
                         root.aa-wireless-changed(on);
+                    }
+                    aa-usb-enabled <=> root.aa-usb-enabled;
+                    aa-usb-changed(on) => {
+                        root.aa-usb-changed(on);
                     }
                     aa-resolution <=> root.aa-resolution;
                     aa-resolution-changed(v) => {

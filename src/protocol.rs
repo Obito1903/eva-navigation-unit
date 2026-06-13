@@ -7,6 +7,7 @@ use std::{collections::HashSet, sync::Arc};
 use bluetooth_rust::BluetoothAdapterTrait;
 use cpal::traits::{DeviceTrait, StreamTrait};
 use ringbuf::traits::Producer;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex;
 
 use android_auto::VideoConfiguration;
@@ -38,6 +39,10 @@ pub(crate) struct AndroidAuto {
     pub(crate) network: Arc<android_auto::NetworkInformation>,
     pub(crate) sensors: android_auto::SensorInformation,
     pub(crate) input_config: android_auto::InputConfiguration,
+    /// Whether USB (wired) Android Auto is enabled. When `false`,
+    /// [`supports_wired`](AndroidAuto::supports_wired) returns `None` so the
+    /// worker never starts the USB connection path.
+    pub(crate) usb_enabled: Arc<AtomicBool>,
 }
 
 // ── Wireless traits ───────────────────────────────────────────────────────────
@@ -323,7 +328,11 @@ impl android_auto::AndroidAutoMainTrait for AndroidAuto {
     }
 
     fn supports_wired(&self) -> Option<Arc<dyn android_auto::AndroidAutoWiredTrait>> {
-        Some(Arc::new(self.clone()))
+        if self.usb_enabled.load(Ordering::Relaxed) {
+            Some(Arc::new(self.clone()))
+        } else {
+            None
+        }
     }
 }
 
@@ -407,6 +416,7 @@ impl AndroidAuto {
         android_recv: tokio::sync::mpsc::Receiver<android_auto::SendableAndroidAutoMessage>,
         android_send: tokio::sync::mpsc::Sender<android_auto::SendableAndroidAutoMessage>,
         video_config: VideoConfiguration,
+        usb_enabled: Arc<AtomicBool>,
     ) -> Self {
         let mut sensors = HashSet::new();
         sensors.insert(android_auto::Wifi::sensor_type::Enum::DRIVING_STATUS);
@@ -454,6 +464,7 @@ impl AndroidAuto {
                 keycodes: vec![1, 2, 3, 4, 5],
                 touchscreen: Some((800, 480)),
             },
+            usb_enabled,
         }
     }
 

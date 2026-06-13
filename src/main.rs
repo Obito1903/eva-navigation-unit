@@ -47,6 +47,7 @@ fn main() -> Result<(), slint::PlatformError> {
         cfg.max_dpi
     );
     log::info!("Wireless Android Auto: {}", cfg.wireless);
+    log::info!("USB Android Auto: {}", cfg.usb);
 
     // Require an OpenGL(-ES) renderer so the wireframe-sphere underlay's
     // rendering notifier (which needs `GraphicsAPI::NativeOpenGL`) always
@@ -63,6 +64,7 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_aa_max_dpi(cfg.max_dpi);
     window.set_aa_dpi(cfg.dpi);
     window.set_aa_wireless_enabled(cfg.wireless);
+    window.set_aa_usb_enabled(cfg.usb);
     window.set_aa_resolution(cfg.resolution);
     window.set_aa_fps(cfg.fps);
     window.set_transition_mode(cfg.transition_mode);

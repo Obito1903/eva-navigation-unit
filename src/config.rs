@@ -30,6 +30,8 @@ pub(crate) const MIN_TRANSITION_SPEED: f32 = 0.25;
 pub(crate) const MAX_TRANSITION_SPEED: f32 = 3.0;
 /// Whether wireless Android Auto is enabled by default.
 pub(crate) const DEFAULT_WIRELESS: bool = true;
+/// Whether USB (wired) Android Auto is enabled by default.
+pub(crate) const DEFAULT_USB: bool = true;
 /// Default Android Auto video resolution (vertical lines: 720 or 1080).
 pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
 /// Default Android Auto video frame rate (30 or 60 fps).
@@ -65,6 +67,10 @@ struct Cli {
     /// Enable wireless Android Auto.
     #[arg(long, env = "EVA_WIRELESS")]
     wireless: Option<bool>,
+
+    /// Enable USB (wired) Android Auto.
+    #[arg(long, env = "EVA_USB")]
+    usb: Option<bool>,
 
     /// Android Auto video resolution (720 or 1080).
     #[arg(long, env = "EVA_RESOLUTION")]
@@ -110,6 +116,7 @@ struct FileConfig {
     max_dpi: Option<i32>,
     dpi: Option<i32>,
     wireless: Option<bool>,
+    usb: Option<bool>,
     resolution: Option<i32>,
     fps: Option<i32>,
     transition_mode: Option<i32>,
@@ -128,6 +135,7 @@ pub(crate) struct Config {
     pub(crate) max_dpi: i32,
     pub(crate) dpi: i32,
     pub(crate) wireless: bool,
+    pub(crate) usb: bool,
     pub(crate) resolution: i32,
     pub(crate) fps: i32,
     pub(crate) transition_mode: i32,
@@ -157,6 +165,7 @@ impl Config {
         let max_dpi = cli.max_dpi.or(file.max_dpi).unwrap_or(DEFAULT_MAX_DPI);
         let dpi = cli.dpi.or(file.dpi).unwrap_or(DEFAULT_DPI);
         let wireless = cli.wireless.or(file.wireless).unwrap_or(DEFAULT_WIRELESS);
+        let usb = cli.usb.or(file.usb).unwrap_or(DEFAULT_USB);
         let resolution = cli
             .resolution
             .or(file.resolution)
@@ -191,6 +200,7 @@ impl Config {
             max_dpi,
             dpi,
             wireless,
+            usb,
             resolution,
             fps,
             transition_mode,
@@ -212,6 +222,7 @@ impl Config {
         max_dpi: i32,
         dpi: i32,
         wireless: bool,
+        usb: bool,
         resolution: i32,
         fps: i32,
         transition_mode: i32,
@@ -237,6 +248,7 @@ impl Config {
             max_dpi,
             dpi,
             wireless,
+            usb,
             resolution: if resolution >= 1080 {
                 1080
             } else if resolution >= 720 {
@@ -264,6 +276,7 @@ impl Config {
             max_dpi: Some(self.max_dpi),
             dpi: Some(self.dpi),
             wireless: Some(self.wireless),
+            usb: Some(self.usb),
             resolution: Some(self.resolution),
             fps: Some(self.fps),
             transition_mode: Some(self.transition_mode),

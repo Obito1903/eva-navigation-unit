@@ -38,6 +38,7 @@ impl AndroidAutoContainer {
     pub(crate) fn new(
         setup: android_auto::AndroidAutoSetup,
         wireless: Arc<AtomicBool>,
+        usb: Arc<AtomicBool>,
         video: Arc<VideoSettings>,
     ) -> Self {
         let to_async = tokio::sync::mpsc::channel(50);
@@ -184,6 +185,7 @@ impl AndroidAutoContainer {
                     aauto.1,
                     aauto.0,
                     video_config,
+                    usb,
                 );
 
                 let config = android_auto::AndroidAutoConfiguration {

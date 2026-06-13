@@ -18,6 +18,10 @@ export component SettingsAndroidAutoTab inherits Rectangle {
     in-out property <bool> wireless-enabled: true;
     callback wireless-changed(bool);
 
+    // USB (wired) Android Auto enable/disable.
+    in-out property <bool> usb-enabled: true;
+    callback usb-changed(bool);
+
     // Android Auto video resolution (480, 720 or 1080 vertical lines).
     in-out property <int> resolution: 720;
     callback resolution-changed(int);
@@ -183,6 +187,26 @@ export component SettingsAndroidAutoTab inherits Rectangle {
                     checked <=> root.wireless-enabled;
                     toggled(on) => {
                         root.wireless-changed(on);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "USB ANDROID AUTO";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    checked <=> root.usb-enabled;
+                    toggled(on) => {
+                        root.usb-changed(on);
                     }
                 }
             }

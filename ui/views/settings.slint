@@ -25,6 +25,10 @@ export component SettingsView inherits Rectangle {
     in-out property <bool> aa-wireless-enabled: true;
     callback aa-wireless-changed(bool);
 
+    // USB (wired) Android Auto enable/disable
+    in-out property <bool> aa-usb-enabled: true;
+    callback aa-usb-changed(bool);
+
     // Android Auto video resolution (720 or 1080 vertical lines)
     in-out property <int> aa-resolution: 720;
     callback aa-resolution-changed(int);
@@ -152,6 +156,10 @@ export component SettingsView inherits Rectangle {
                     wireless-enabled <=> root.aa-wireless-enabled;
                     wireless-changed(on) => {
                         root.aa-wireless-changed(on);
+                    }
+                    usb-enabled <=> root.aa-usb-enabled;
+                    usb-changed(on) => {
+                        root.aa-usb-changed(on);
                     }
                     resolution <=> root.aa-resolution;
                     resolution-changed(v) => {

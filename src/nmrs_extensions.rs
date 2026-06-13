@@ -40,6 +40,13 @@ pub async fn start_hotspot(ssid: String, psk: String, wifi_dev_path: &str) -> Re
         .wpa_psk(&psk)
         .autoconnect(false)
         .mode(nmrs::builders::WifiMode::Ap)
+        // An access point must use NetworkManager's "shared" IPv4 method so NM
+        // assigns the 10.42.0.1/24 gateway address and runs a DHCP/DNS server
+        // (dnsmasq) for clients. Without this NM defaults to "auto", runs a
+        // DHCP *client* on the AP interface, finds no server and fails with
+        // "IP configuration could not be reserved" — so the hotspot never
+        // comes up and the phone cannot reach the Android Auto TCP socket.
+        .ipv4_shared()
         .build();
     build_hotspot(wifi_dev_path, hotspot).await
 }

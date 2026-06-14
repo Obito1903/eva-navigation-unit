@@ -63,6 +63,18 @@ export component ViewSlot inherits Rectangle {
 
         @children
 
+        // Input guard — an inactive slot is only hidden via `opacity: 0`, but
+        // transparent Slint elements still receive pointer events, so a hidden
+        // view's TouchAreas (e.g. the resolution dropdown) would otherwise keep
+        // catching touches from behind the active view. This top TouchArea
+        // swallows all input while the slot is inactive; when active it is
+        // disabled and lets events fall through to `@children`.
+        TouchArea {
+            width: 100%;
+            height: 100%;
+            enabled: !root.active;
+        }
+
         // Phosphor flash (CRT mode only) — a white wash that blooms at the
         // scanline/dot pinch point as the tube powers off, then disappears
         // with the box. Kept off entirely during power-on so the bright sweep

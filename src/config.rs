@@ -3,7 +3,9 @@
 //! Values are resolved with the following precedence (highest wins):
 //!   1. CLI arguments        (e.g. `--min-dpi 120`)
 //!   2. Environment variables (`EVA_MIN_DPI`, `EVA_MAX_DPI`)
-//!   3. Config file (TOML)   (`--config <path>` or `EVA_CONFIG`, else `config.toml`)
+//!   3. Config file (TOML)   (`--config <path>` or `EVA_CONFIG`; else a local
+//!      `config.toml` in the working directory when present, otherwise the
+//!      per-user `~/.config/eva-ui/config.toml`)
 //!   4. Built-in defaults
 
 use std::path::PathBuf;
@@ -324,6 +326,16 @@ impl Config {
         };
         match toml::to_string_pretty(&file) {
             Ok(contents) => {
+                if let Some(parent) = self.path.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        if let Err(e) = std::fs::create_dir_all(parent) {
+                            log::warn!(
+                                "Failed to create config directory {}: {e}",
+                                parent.display()
+                            );
+                        }
+                    }
+                }
                 if let Err(e) = std::fs::write(&self.path, contents) {
                     log::warn!("Failed to write config file {}: {e}", self.path.display());
                 }
@@ -333,12 +345,35 @@ impl Config {
     }
 }
 
-/// Resolve the configuration file path: explicit (CLI/`EVA_CONFIG`) if given,
-/// otherwise the default `config.toml` in the working directory.
+/// Resolve the configuration file path with the following precedence:
+///   1. Explicit path from `--config` / `EVA_CONFIG`.
+///   2. A `config.toml` in the current working directory (development).
+///   3. The per-user config at `$XDG_CONFIG_HOME/eva-ui/config.toml`
+///      (defaulting to `~/.config/eva-ui/config.toml`) once installed.
 fn config_path(explicit: Option<&PathBuf>) -> PathBuf {
-    explicit
-        .cloned()
-        .unwrap_or_else(|| PathBuf::from("config.toml"))
+    if let Some(path) = explicit {
+        return path.clone();
+    }
+
+    // Keep configuration local while developing: if a `config.toml` already
+    // sits in the working directory (the repo root when run via `cargo run`),
+    // use it instead of the per-user location.
+    let local = PathBuf::from("config.toml");
+    if local.exists() {
+        return local;
+    }
+
+    user_config_path().unwrap_or(local)
+}
+
+/// The per-user configuration path: `$XDG_CONFIG_HOME/eva-ui/config.toml`,
+/// falling back to `$HOME/.config/eva-ui/config.toml`.
+fn user_config_path() -> Option<PathBuf> {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))?;
+    Some(base.join("eva-ui").join("config.toml"))
 }
 
 /// Load the config file at `path`. A missing file yields defaults; a present

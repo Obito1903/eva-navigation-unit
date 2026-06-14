@@ -22,6 +22,7 @@
 mod audio;
 mod config;
 mod container;
+mod controls;
 mod gfx;
 mod hostapd;
 mod messages;

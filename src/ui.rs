@@ -128,6 +128,34 @@ pub(crate) fn wire(
         });
     }
 
+    // ── Quick controls: system volume ─────────────────────────────────────
+    // Drives the real system mixer; seed the slider from the current level.
+    {
+        let volume = crate::controls::Volume::discover();
+        if let Some(level) = volume.as_ref().and_then(|v| v.get_fraction()) {
+            window.set_volume_level(level);
+        }
+        window.on_volume_changed(move |level| {
+            if let Some(v) = volume.as_ref() {
+                v.set_fraction(level);
+            }
+        });
+    }
+
+    // ── Quick controls: physical screen brightness ────────────────────────
+    // Drives the kernel backlight sysfs; seed the slider from the current level.
+    {
+        let backlight = crate::controls::Backlight::discover();
+        if let Some(level) = backlight.as_ref().and_then(|b| b.get_fraction()) {
+            window.set_brightness_level(level);
+        }
+        window.on_brightness_changed(move |level| {
+            if let Some(b) = backlight.as_ref() {
+                b.set_fraction(level);
+            }
+        });
+    }
+
     // ── Resolution: Settings UI → config + worker ─────────────────────────
     {
         let video = video.clone();

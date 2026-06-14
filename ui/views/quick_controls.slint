@@ -1,0 +1,105 @@
+import { Theme } from "../theme.slint";
+import { HudPanel } from "../components/hud_panel.slint";
+import { CapsuleBarSlider } from "../components/capsule_bar_slider.slint";
+
+// Quick controls: system volume + physical screen brightness.
+export component QuickControlsView inherits Rectangle {
+    // Use a faintly opaque background when the GL underlay is on so the
+    // wireframe shows through, mirroring the settings view.
+    in property <bool> gfx-bg-enabled: false;
+    background: root.gfx-bg-enabled ? Theme.bg.with-alpha(0.45) : Theme.bg;
+
+    // System audio volume (0.0–1.0).
+    in-out property <float> volume-level: 0.5;
+    callback volume-changed(float);
+
+    // Physical screen brightness (0.0–1.0).
+    in-out property <float> brightness-level: 0.5;
+    callback brightness-changed(float);
+
+    HudPanel {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            alignment: start;
+            padding: 24px;
+            spacing: 28px;
+
+            Text {
+                text: "QUICK CONTROLS";
+                color: Theme.text;
+                font-size: 20px;
+                font-weight: 800;
+                letter-spacing: 3px;
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Theme.red-dim;
+            }
+
+            // ── Volume ────────────────────────────────────────────────
+            VerticalLayout {
+                spacing: 10px;
+
+                HorizontalLayout {
+                    Text {
+                        text: "VOLUME";
+                        color: Theme.text;
+                        font-size: 14px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: Math.round(root.volume-level * 100) + "%";
+                        color: Theme.text;
+                        font-size: 14px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    value: root.volume-level;
+                    value-changed(v) => {
+                        root.volume-level = v;
+                        root.volume-changed(v);
+                    }
+                }
+            }
+
+            // ── Brightness ────────────────────────────────────────────
+            VerticalLayout {
+                spacing: 10px;
+
+                HorizontalLayout {
+                    Text {
+                        text: "BRIGHTNESS";
+                        color: Theme.text;
+                        font-size: 14px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: Math.round(root.brightness-level * 100) + "%";
+                        color: Theme.text;
+                        font-size: 14px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    value: root.brightness-level;
+                    value-changed(v) => {
+                        root.brightness-level = v;
+                        root.brightness-changed(v);
+                    }
+                }
+            }
+        }
+    }
+}

@@ -11,6 +11,7 @@ import { Sidebar } from "components/sidebar.slint";
 import { ViewSlot } from "components/view_slot.slint";
 import { AndroidAutoView } from "views/android_auto.slint";
 import { SettingsView } from "views/settings.slint";
+import { QuickControlsView } from "views/quick_controls.slint";
 
 // Re-export the palette global so Rust can switch themes at runtime.
 export { Theme }
@@ -109,6 +110,12 @@ export component AppWindow inherits Window {
     // Fired by the video TouchArea: x, y in video-source pixels, action (0=down 1=move 2=up)
     callback touch-event(float, float, int);
 
+    // Quick controls: system volume + physical screen brightness (0.0–1.0).
+    in-out property <float> volume-level: 0.5;
+    callback volume-changed(float);
+    in-out property <float> brightness-level: 0.5;
+    callback brightness-changed(float);
+
     // Fired by sidebar nav buttons
     callback nav-to(int);
 
@@ -120,6 +127,7 @@ export component AppWindow inherits Window {
             items: [
                 { label: "AUTO", gl-icon: true, gl-id: 0 },
                 { label: "SYS", gl-icon: true, gl-id: 1 },
+                { label: "CTRL", icon: "\u{2600}", gl-icon: false },
             ];
             nav-to(i) => {
                 root.nav-to(i);
@@ -223,6 +231,28 @@ export component AppWindow inherits Window {
                     hotspot-channel <=> root.hotspot-channel;
                     hotspot-channel-changed(v) => {
                         root.hotspot-channel-changed(v);
+                    }
+                }
+            }
+
+            // View 2 — Quick controls (slides in from the right)
+            ViewSlot {
+                active: root.active-view == 2;
+                slide: 32px;
+                mode: root.transition-mode;
+                speed: root.transition-speed;
+
+                QuickControlsView {
+                    width: 100%;
+                    height: 100%;
+                    gfx-bg-enabled: root.gfx-bg-enabled;
+                    volume-level <=> root.volume-level;
+                    volume-changed(v) => {
+                        root.volume-changed(v);
+                    }
+                    brightness-level <=> root.brightness-level;
+                    brightness-changed(v) => {
+                        root.brightness-changed(v);
                     }
                 }
             }

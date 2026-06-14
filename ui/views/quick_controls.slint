@@ -65,6 +65,9 @@ export component QuickControlsView inherits Rectangle {
                     value: root.volume-level;
                     value-changed(v) => {
                         root.volume-level = v;
+                    }
+                    value-committed(v) => {
+                        root.volume-level = v;
                         root.volume-changed(v);
                     }
                 }
@@ -95,6 +98,9 @@ export component QuickControlsView inherits Rectangle {
                 CapsuleBarSlider {
                     value: root.brightness-level;
                     value-changed(v) => {
+                        root.brightness-level = v;
+                    }
+                    value-committed(v) => {
                         root.brightness-level = v;
                         root.brightness-changed(v);
                     }

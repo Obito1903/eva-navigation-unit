@@ -23,7 +23,10 @@ component CapsuleBar inherits Rectangle {
 // the selected value.
 export component CapsuleBarSlider inherits Rectangle {
     in-out property <float> value: 0.5;  // 0.0 – 1.0
+    // Fired continuously while dragging (use for live visual feedback).
     callback value-changed(float);
+    // Fired once when the drag/tap ends (use to apply the final value).
+    callback value-committed(float);
     height: 56px;
 
     property <int> num-bars: 96;
@@ -65,9 +68,14 @@ export component CapsuleBarSlider inherits Rectangle {
                     root.value-changed(root.value);
                 }
             }
-            clicked => {
-                root.value = clamp(self.mouse-x / self.width, 0, 1);
-                root.value-changed(root.value);
+            pointer-event(ev) => {
+                // Commit the final value once the press is released, so heavy
+                // consumers don't apply every intermediate drag increment.
+                if (ev.kind == PointerEventKind.up) {
+                    root.value = clamp(self.mouse-x / self.width, 0, 1);
+                    root.value-changed(root.value);
+                    root.value-committed(root.value);
+                }
             }
         }
     }

@@ -20,6 +20,8 @@ pub(crate) struct VideoSettings {
     pub(crate) resolution: AtomicI32,
     /// Frame rate (30 or 60 fps).
     pub(crate) fps: AtomicI32,
+    /// Android Auto display density in DPI.
+    pub(crate) dpi: AtomicI32,
     /// Current screen width used to derive the picture aspect ratio.
     pub(crate) screen_w: AtomicU32,
     /// Current screen height used to derive the picture aspect ratio.
@@ -198,7 +200,7 @@ impl AndroidAutoContainer {
                     video.fps.load(Ordering::Relaxed),
                     video.screen_w.load(Ordering::Relaxed),
                     video.screen_h.load(Ordering::Relaxed),
-                    111,
+                    video.dpi.load(Ordering::Relaxed).clamp(1, u16::MAX as i32) as u16,
                 );
                 let aa = AndroidAuto::new(
                     to_async.1,

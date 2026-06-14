@@ -49,6 +49,7 @@ pub(crate) fn wire(
     let video = Arc::new(VideoSettings {
         resolution: AtomicI32::new(cfg.borrow().resolution),
         fps: AtomicI32::new(cfg.borrow().fps),
+        dpi: AtomicI32::new(cfg.borrow().dpi),
         screen_w: AtomicU32::new(1280),
         screen_h: AtomicU32::new(720),
     });
@@ -116,9 +117,11 @@ pub(crate) fn wire(
 
     // ── DPI: Settings UI → config ─────────────────────────────────────────
     {
+        let video = video.clone();
         let cfg = cfg.clone();
         window.on_aa_dpi_changed(move |dpi| {
-            log::info!("Android Auto DPI set to {dpi}");
+            log::info!("Android Auto DPI set to {dpi} (applies on next connection)");
+            video.dpi.store(dpi, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.dpi = dpi;
             cfg.save();

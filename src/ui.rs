@@ -114,6 +114,17 @@ pub(crate) fn wire(
         });
     }
 
+    // ── DPI: Settings UI → config ─────────────────────────────────────────
+    {
+        let cfg = cfg.clone();
+        window.on_aa_dpi_changed(move |dpi| {
+            log::info!("Android Auto DPI set to {dpi}");
+            let mut cfg = cfg.borrow_mut();
+            cfg.dpi = dpi;
+            cfg.save();
+        });
+    }
+
     // ── Resolution: Settings UI → config + worker ─────────────────────────
     {
         let video = video.clone();

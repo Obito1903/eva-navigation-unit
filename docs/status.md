@@ -54,12 +54,14 @@ System libraries required on the build host (Fedora package names):
 ## Roadmap / TODO
 
 ### Near term
+
 - [ ] Flesh out the Settings view (real, interactive options).
 - [ ] Surface connection state / errors in the UI beyond the waiting overlay.
 - [ ] Make hotspot SSID/PSK configurable instead of hard-coded.
 - [ ] Respect `HeadUnitInfo.left_hand` to mirror the sidebar for RHD.
 
 ### Medium term
+
 - [ ] Navigation channel UI (turn-by-turn display).
 - [ ] Multi-touch support (currently single pointer id 0).
 - [ ] Configurable video resolution / DPI from settings.
@@ -69,6 +71,7 @@ System libraries required on the build host (Fedora package names):
 - [ ] Improve UI for CAR use
 
 ### Longer term
+
 - [ ] Persisted user preferences.
 - [ ] Theming (day/night auto-switching tied to the night-mode sensor).
 - [ ] Target validation on real automotive display hardware.

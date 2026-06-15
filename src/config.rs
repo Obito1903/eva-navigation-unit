@@ -49,6 +49,10 @@ pub(crate) const DEFAULT_HOTSPOT_BACKEND: i32 = 0;
 /// Default 5 GHz channel used by the hostapd hotspot backend (0 = automatic).
 /// Ignored by the NetworkManager backend.
 pub(crate) const DEFAULT_HOTSPOT_CHANNEL: i32 = 36;
+/// Default global log level (`error` | `warn` | `info` | `debug` | `trace`).
+pub(crate) const DEFAULT_LOG_LEVEL: &str = "info";
+/// Default log output format (`text` | `json`).
+pub(crate) const DEFAULT_LOG_FORMAT: &str = "text";
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -122,6 +126,34 @@ struct Cli {
     /// 5 GHz channel for the hostapd hotspot backend (0 = automatic).
     #[arg(long, env = "EVA_HOTSPOT_CHANNEL")]
     hotspot_channel: Option<i32>,
+
+    /// Global log level (error | warn | info | debug | trace).
+    #[arg(long, env = "EVA_LOG_LEVEL")]
+    log_level: Option<String>,
+
+    /// Log level override for the UI component.
+    #[arg(long, env = "EVA_LOG_UI")]
+    log_ui: Option<String>,
+
+    /// Log level override for the Audio component.
+    #[arg(long, env = "EVA_LOG_AUDIO")]
+    log_audio: Option<String>,
+
+    /// Log level override for the Android Auto (AA) component.
+    #[arg(long, env = "EVA_LOG_AA")]
+    log_aa: Option<String>,
+
+    /// Log level override for the Bluetooth/transport (BT) component.
+    #[arg(long, env = "EVA_LOG_BT")]
+    log_bt: Option<String>,
+
+    /// Also write logs to this file (omit for console only).
+    #[arg(long, env = "EVA_LOG_FILE")]
+    log_file: Option<PathBuf>,
+
+    /// Log output format (text | json).
+    #[arg(long, env = "EVA_LOG_FORMAT")]
+    log_format: Option<String>,
 }
 
 /// Shape of the optional TOML configuration file.
@@ -143,6 +175,35 @@ struct FileConfig {
     fullscreen: Option<bool>,
     hotspot_backend: Option<i32>,
     hotspot_channel: Option<i32>,
+    log: Option<LogFileConfig>,
+}
+
+/// Shape of the optional `[log]` table in the TOML configuration file.
+#[derive(Deserialize, Serialize, Default, Debug)]
+struct LogFileConfig {
+    level: Option<String>,
+    ui: Option<String>,
+    audio: Option<String>,
+    aa: Option<String>,
+    bt: Option<String>,
+    file: Option<PathBuf>,
+    format: Option<String>,
+}
+
+/// Fully resolved logging / debug-pipeline configuration.
+#[derive(Debug, Clone)]
+pub(crate) struct LogConfig {
+    /// Global default level applied to every component.
+    pub(crate) level: String,
+    /// Optional per-component level overrides.
+    pub(crate) ui: Option<String>,
+    pub(crate) audio: Option<String>,
+    pub(crate) aa: Option<String>,
+    pub(crate) bt: Option<String>,
+    /// Optional file to also write logs to (console output is always on).
+    pub(crate) file: Option<PathBuf>,
+    /// Output format: `text` or `json`.
+    pub(crate) format: String,
 }
 
 /// Fully resolved runtime configuration.
@@ -169,6 +230,8 @@ pub(crate) struct Config {
     pub(crate) hotspot_backend: i32,
     /// 5 GHz channel for the hostapd hotspot backend (0 = automatic).
     pub(crate) hotspot_channel: i32,
+    /// Logging / debug-pipeline configuration.
+    pub(crate) log: LogConfig,
     /// Path the configuration is loaded from and saved back to.
     pub(crate) path: PathBuf,
 }
@@ -224,6 +287,23 @@ impl Config {
             .or(file.hotspot_channel)
             .unwrap_or(DEFAULT_HOTSPOT_CHANNEL);
 
+        let file_log = file.log.unwrap_or_default();
+        let log = LogConfig {
+            level: cli
+                .log_level
+                .or(file_log.level)
+                .unwrap_or_else(|| DEFAULT_LOG_LEVEL.to_string()),
+            ui: cli.log_ui.or(file_log.ui),
+            audio: cli.log_audio.or(file_log.audio),
+            aa: cli.log_aa.or(file_log.aa),
+            bt: cli.log_bt.or(file_log.bt),
+            file: cli.log_file.or(file_log.file),
+            format: cli
+                .log_format
+                .or(file_log.format)
+                .unwrap_or_else(|| DEFAULT_LOG_FORMAT.to_string()),
+        };
+
         Self::sanitised(
             min_dpi,
             max_dpi,
@@ -241,6 +321,7 @@ impl Config {
             fullscreen,
             hotspot_backend,
             hotspot_channel,
+            log,
             path,
         )
     }
@@ -265,6 +346,7 @@ impl Config {
         fullscreen: bool,
         hotspot_backend: i32,
         hotspot_channel: i32,
+        log: LogConfig,
         path: PathBuf,
     ) -> Self {
         let mut min_dpi = min_dpi.max(1);
@@ -300,6 +382,7 @@ impl Config {
             fullscreen,
             hotspot_backend: hotspot_backend.clamp(0, 1),
             hotspot_channel: hotspot_channel.max(0),
+            log,
             path,
         }
     }
@@ -323,6 +406,15 @@ impl Config {
             fullscreen: Some(self.fullscreen),
             hotspot_backend: Some(self.hotspot_backend),
             hotspot_channel: Some(self.hotspot_channel),
+            log: Some(LogFileConfig {
+                level: Some(self.log.level.clone()),
+                ui: self.log.ui.clone(),
+                audio: self.log.audio.clone(),
+                aa: self.log.aa.clone(),
+                bt: self.log.bt.clone(),
+                file: self.log.file.clone(),
+                format: Some(self.log.format.clone()),
+            }),
         };
         match toml::to_string_pretty(&file) {
             Ok(contents) => {

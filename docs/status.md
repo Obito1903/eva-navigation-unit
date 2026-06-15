@@ -60,6 +60,7 @@ System libraries required on the build host (Fedora package names):
 - [ ] Make hotspot SSID/PSK configurable instead of hard-coded.
 - [ ] Respect `HeadUnitInfo.left_hand` to mirror the sidebar for RHD.
 - [ ] Complete logs/debug pipeline
+  - [x] Structured `tracing` pipeline with per-component levels (UI/Audio/AA/BT), opt-in file logging (text/JSON), and feature-gated local visualisation (Perfetto, tokio-console). See [debug-pipeline.md](debug-pipeline.md).
   - [ ] Add "debug" view that allows change log level of different components of the app (BT, AA, Audio, UI)
 - [ ] Scale setting for the Slint UI
 

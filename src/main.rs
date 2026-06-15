@@ -25,6 +25,7 @@ mod container;
 mod controls;
 mod gfx;
 mod hostapd;
+mod logging;
 mod messages;
 mod nmrs_extensions;
 mod protocol;
@@ -36,13 +37,8 @@ use slint::Global;
 
 slint::include_modules!();
 fn main() -> Result<(), slint::PlatformError> {
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .with_module_level("android_auto::usb", log::LevelFilter::Warn)
-        .init()
-        .unwrap();
-
     let cfg = config::Config::load();
+    let _log_guards = logging::init(&cfg);
     log::info!(
         "DPI configured: current={} min={} max={}",
         cfg.dpi,

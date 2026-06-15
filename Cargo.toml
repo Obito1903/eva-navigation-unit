@@ -16,10 +16,20 @@ nmrs = "2.0"
 openh264 = "0.9"
 ringbuf = "0.4"
 serde = { version = "1", features = ["derive"] }
-simple_logger = "5"
 slint = "1"
 tokio = { version = "1", features = ["full"] }
 toml = "0.8"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = [
+    "env-filter",
+    "fmt",
+    "json",
+    "tracing-log",
+] }
+# Optional local-visualization backends (off by default).
+tracing-chrome = { version = "0.7", optional = true }
+console-subscriber = { version = "0.4", optional = true }
 zbus = "5"
 zvariant = "5"
 
@@ -36,6 +46,14 @@ opt-level = 3
 [features]
 # Both transport modes enabled by default — match the android-auto path dep
 default = []
+
+# Emit a Chrome/Perfetto trace file (open in https://ui.perfetto.dev). See
+# docs for usage; adds the `tracing-chrome` layer.
+chrome-trace = ["dep:tracing-chrome"]
+
+# Expose a live async task view via `tokio-console`. Requires building with
+# RUSTFLAGS="--cfg tokio_unstable". Adds the `console-subscriber` layer.
+tokio-console = ["dep:console-subscriber"]
 
 # Required for the v1 certificate used by android-auto (src/cert.rs).
 # `[patch]` only applies from the crate being built, so it must be duplicated

@@ -8,4 +8,5 @@ infotainment front end.
 
 - [Architecture](architecture.md) — software structure, threading model, data flow
 - [Design Decisions](design-decisions.md) — technology choices and rationale
+- [Debug & Logging Pipeline](debug-pipeline.md) — log levels, file output, visualisation tools
 - [Status & Tracking](status.md) — implementation status and roadmap

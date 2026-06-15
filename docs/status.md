@@ -59,6 +59,9 @@ System libraries required on the build host (Fedora package names):
 - [ ] Surface connection state / errors in the UI beyond the waiting overlay.
 - [ ] Make hotspot SSID/PSK configurable instead of hard-coded.
 - [ ] Respect `HeadUnitInfo.left_hand` to mirror the sidebar for RHD.
+- [ ] Complete logs/debug pipeline
+  - [ ] Add "debug" view that allows change log level of different components of the app (BT, AA, Audio, UI)
+- [ ] Scale setting for the Slint UI
 
 ### Medium term
 
@@ -66,6 +69,9 @@ System libraries required on the build host (Fedora package names):
 - [ ] Multi-touch support (currently single pointer id 0).
 - [ ] Configurable video resolution / DPI from settings.
 - [ ] OBD2 Integration
+  - [ ] Dedicated view
+  - [ ] Send car info to AA
+  - [ ] Gauge display
 - [ ] BT managment view
 - [ ] Import any 3D mesh for background render
 - [ ] Improve UI for CAR use
@@ -73,11 +79,8 @@ System libraries required on the build host (Fedora package names):
 ### Longer term
 
 - [ ] Persisted user preferences.
-- [ ] Theming (day/night auto-switching tied to the night-mode sensor).
-- [ ] Target validation on real automotive display hardware.
+- [ ] OpenGL/Vulkan audio visualizer
 
 ## Known limitations
 
-- Hotspot credentials and network details are hard-coded in the protocol/container setup.
 - Single-pointer touch only.
-- Settings view is non-functional placeholder content.

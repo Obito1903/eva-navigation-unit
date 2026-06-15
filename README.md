@@ -35,5 +35,15 @@ sudo dnf install bluez NetworkManager
 
 ## Build & Run
 
+```
+cd ~/Downloads/git/eva-ui/deploy/eva-hotspot
+sudo ./install.sh obito1903              # one-time, needs root
+
+# verify polkit works WITHOUT sudo:
+systemctl start eva-hotspot.service && systemctl is-active eva-hotspot.service
+systemctl stop  eva-hotspot.service
+
+cd ~/Downloads/git/eva-ui
 cargo build --release
-./target/release/a310
+DISPLAY=:0 ./target/release/a310 &> eva-ui.log   # NOTE: no sudo
+```

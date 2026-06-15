@@ -97,7 +97,14 @@ impl android_auto::AndroidAutoVideoChannelTrait for AndroidAuto {
 
     async fn wait_for_focus(&self) {}
 
-    async fn set_focus(&self, _focus: bool) {}
+    async fn set_focus(&self, focus: bool) {
+        // Forward the Android Auto video-focus change to the UI thread. `false`
+        // is the "Exit" intent (return to the head unit GUI); `true` means
+        // Android Auto wants the screen. The session is left connected either
+        // way.
+        let i = self.inner.lock().await;
+        let _ = i.send.send(MessageFromAsync::FocusChanged(focus)).await;
+    }
 
     fn retrieve_video_configuration(&self) -> &VideoConfiguration {
         &self.config

@@ -9,6 +9,11 @@ pub(crate) enum MessageFromAsync {
     Connected,
     Disconnected,
     ExitContainer,
+    /// Android Auto video focus changed. `true` means Android Auto requested
+    /// the screen (show the Android Auto view); `false` is the "Exit" intent —
+    /// the user asked to return to the head unit GUI while the Android Auto
+    /// session stays connected.
+    FocusChanged(bool),
 }
 
 /// Sent from the UI thread to the async worker.

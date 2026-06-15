@@ -295,6 +295,21 @@ pub(crate) fn wire(
         });
     }
 
+    // ── Navigation → android-auto focus ───────────────────────────────────
+    // When the user returns to the Android Auto view (index 0), ask the phone
+    // for video focus so projection resumes after an earlier "Exit" intent.
+    {
+        let send_touch = send_touch.clone();
+        window.on_nav_to(move |i| {
+            if i == 0 {
+                let msg = build_video_focus_request();
+                let _ = send_touch
+                    .borrow()
+                    .try_send(MessageToAsync::AndroidAutoMessage(msg));
+            }
+        });
+    }
+
     // ── Video decoder thread ──────────────────────────────────────────────
     let (video_tx, video_rx) = std::sync::mpsc::channel::<VideoCommand>();
     video::spawn_decoder(video_rx, window_weak.clone());
@@ -346,6 +361,26 @@ pub(crate) fn wire(
                     // decode on the UI thread or the event loop will stall.
                     let _ = video_tx.send(VideoCommand::Frame(data));
                 }
+                MessageFromAsync::FocusChanged(focus) => {
+                    if focus {
+                        // Android Auto wants the screen (e.g. the user opened it
+                        // on the phone or a navigation prompt fired). Bring the
+                        // Android Auto view to the front.
+                        log::info!("Android Auto requested focus — showing Android Auto view");
+                        win.set_active_view(0);
+                    } else {
+                        // The Android Auto "Exit" intent: return to the head unit
+                        // GUI while keeping the session connected. Only switch if
+                        // the Android Auto view is currently showing so we do not
+                        // yank the user away from another screen.
+                        log::info!(
+                            "Android Auto \"Exit\" intent — returning to head unit GUI"
+                        );
+                        if win.get_active_view() == 0 {
+                            win.set_active_view(2);
+                        }
+                    }
+                }
             }
         }
     });
@@ -380,4 +415,15 @@ fn build_touch_message(x: f32, y: f32, kind: i32) -> android_auto::SendableAndro
     i_event.touch_event = android_auto::protobuf::MessageField::some(te);
 
     android_auto::AndroidAutoMessage::Input(i_event).sendable()
+}
+
+/// Build an android-auto video focus indication asking the phone to project to
+/// the head unit (used when the user returns to the Android Auto view after an
+/// "Exit" intent). `unrequested` is set because the head unit, not the phone,
+/// initiates this focus change.
+fn build_video_focus_request() -> android_auto::SendableAndroidAutoMessage {
+    let mut ind = android_auto::Wifi::VideoFocusIndication::new();
+    ind.set_focus_mode(android_auto::Wifi::video_focus_mode::Enum::FOCUSED);
+    ind.set_unrequested(true);
+    android_auto::AndroidAutoMessage::VideoFocusIndication(ind).sendable()
 }

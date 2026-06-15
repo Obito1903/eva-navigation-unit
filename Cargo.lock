@@ -244,13 +244,13 @@ dependencies = [
  "bluetooth-rust",
  "enum_dispatch",
  "futures",
- "log",
  "nusb",
  "protobuf",
  "protobuf-codegen",
  "rustls",
  "serde",
  "tokio",
+ "tracing",
  "webpki-roots 0.26.11",
 ]
 

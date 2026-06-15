@@ -38,6 +38,7 @@ slint::include_modules!();
 fn main() -> Result<(), slint::PlatformError> {
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
+        .with_module_level("android_auto::usb", log::LevelFilter::Warn)
         .init()
         .unwrap();
 

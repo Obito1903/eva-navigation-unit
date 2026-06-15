@@ -1,0 +1,21 @@
+// Allow the EVA head-unit user to start and stop ONLY eva-hotspot.service
+// without a password. This lets the unprivileged eva-ui process bring the
+// Android Auto Wi-Fi access point up on demand via
+// `systemctl start eva-hotspot.service`.
+//
+// Scope is deliberately minimal: it grants no privilege over any other unit and
+// no other polkit action. Installed at /etc/polkit-1/rules.d/49-eva-hotspot.rules.
+// The "@EVA_USER@" placeholder is substituted by install.sh.
+
+polkit.addRule(function(action, subject) {
+    if (action.id !== "org.freedesktop.systemd1.manage-units") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (action.lookup("unit") !== "eva-hotspot.service") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (subject.user === "@EVA_USER@") {
+        return polkit.Result.YES;
+    }
+    return polkit.Result.NOT_HANDLED;
+});

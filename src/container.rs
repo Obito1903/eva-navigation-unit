@@ -87,16 +87,19 @@ impl AndroidAutoContainer {
                         };
                         let mac = wifi_dev.identity.current_mac.clone();
                         let guard = if backend == 1 {
-                            // hostapd backend: drives the radio directly. Needs
-                            // the kernel interface name and elevated privileges.
-                            log::info!("Starting hotspot via hostapd backend");
-                            let handle = crate::hostapd::HostapdHandle::start(
-                                &wifi_dev.interface,
-                                &hotspot_ssid,
-                                &hotspot_psk,
-                                channel,
-                            )
-                            .map_err(|e| format!("hostapd hotspot failed: {e}"))?;
+                            // hostapd backend: a privileged `eva-hotspot.service`
+                            // (started here via systemd + polkit) owns the radio,
+                            // so eva-ui itself stays unprivileged. SSID/PSK/channel
+                            // are configured in the service, not passed from here;
+                            // the config `hotspot_channel` ({channel}) is therefore
+                            // ignored for this backend.
+                            log::info!(
+                                "Starting hotspot via hostapd backend \
+                                 (eva-hotspot.service; config hotspot_channel={channel} \
+                                 is set in the service, not here)"
+                            );
+                            let handle = crate::hostapd::HostapdHandle::start()
+                                .map_err(|e| format!("hostapd hotspot failed: {e}"))?;
                             Some(handle)
                         } else {
                             // NetworkManager backend (default).

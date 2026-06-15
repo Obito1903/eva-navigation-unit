@@ -1,0 +1,22 @@
+[Unit]
+Description=EVA Android Auto Wi-Fi hotspot (hostapd + dnsmasq)
+# The hotspot is brought up on demand by the (unprivileged) eva-ui process via
+# `systemctl start eva-hotspot.service`, authorised by the bundled polkit rule.
+After=network.target NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/eva-hotspot/hotspot.env
+# `up` performs all the privileged radio setup and then execs hostapd, so this
+# unit's main process IS hostapd. dnsmasq is started inside the same cgroup, so
+# systemd cleans both up on stop.
+ExecStart=/usr/local/sbin/eva-hotspot up
+# `down` restores the radio to NetworkManager and drops the gateway address.
+ExecStopPost=/usr/local/sbin/eva-hotspot down
+# Bring the AP straight back if hostapd crashes while a phone is connected.
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

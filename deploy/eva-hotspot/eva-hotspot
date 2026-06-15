@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+#
+# eva-hotspot — privileged Android Auto Wi-Fi access point helper.
+#
+# Run by eva-hotspot.service (as root). Splits the privileged radio work out of
+# the unprivileged eva-ui process: the app only triggers the service via
+# `systemctl start/stop eva-hotspot.service` (authorised by the bundled polkit
+# rule), and all the netlink/AP setup that needs CAP_NET_ADMIN happens here.
+#
+# Usage: eva-hotspot up|down
+#
+#   up   – release the radio from NetworkManager, configure the interface,
+#          start dnsmasq, then exec hostapd (becomes the service main process).
+#   down – stop dnsmasq, drop the gateway address, hand the radio back to
+#          NetworkManager. Run from ExecStopPost.
+
+set -euo pipefail
+
+CONF_DIR=/run/eva-hotspot
+HOSTAPD_CONF="$CONF_DIR/hostapd.conf"
+IFACE_CACHE="$CONF_DIR/iface"
+
+# Defaults; overridden by /etc/eva-hotspot/hotspot.env via the systemd unit.
+EVA_HOTSPOT_IFACE="${EVA_HOTSPOT_IFACE:-}"
+EVA_HOTSPOT_SSID="${EVA_HOTSPOT_SSID:-Hotspot}"
+EVA_HOTSPOT_PSK="${EVA_HOTSPOT_PSK:-qwertyuiop}"
+EVA_HOTSPOT_CHANNEL="${EVA_HOTSPOT_CHANNEL:-36}"
+EVA_HOTSPOT_COUNTRY="${EVA_HOTSPOT_COUNTRY:-}"
+EVA_HOTSPOT_GATEWAY_CIDR="${EVA_HOTSPOT_GATEWAY_CIDR:-10.42.0.1/24}"
+EVA_HOTSPOT_DHCP_RANGE="${EVA_HOTSPOT_DHCP_RANGE:-10.42.0.10,10.42.0.100,255.255.255.0,12h}"
+EVA_HOTSPOT_GATEWAY_IP="${EVA_HOTSPOT_GATEWAY_IP:-10.42.0.1}"
+
+log() { echo "eva-hotspot: $*" >&2; }
+
+# Resolve the wireless interface: explicit override, cached value, or the first
+# interface that has a wireless sysfs node.
+detect_iface() {
+    if [[ -n "$EVA_HOTSPOT_IFACE" ]]; then
+        echo "$EVA_HOTSPOT_IFACE"
+        return 0
+    fi
+    local dev
+    for dev in /sys/class/net/*; do
+        if [[ -d "$dev/wireless" || -e "$dev/phy80211" ]]; then
+            basename "$dev"
+            return 0
+        fi
+    done
+    return 1
+}
+
+write_hostapd_conf() {
+    local iface="$1"
+    local channel="$EVA_HOTSPOT_CHANNEL"
+    [[ "$channel" == "0" ]] && channel=36
+
+    local country="$EVA_HOTSPOT_COUNTRY"
+    if [[ -z "$country" ]]; then
+        # Parse `iw reg get` -> `country FR: ...`; ignore the world default 00.
+        country="$(iw reg get 2>/dev/null | awk '/^country/ {gsub(":","",$2); print $2; exit}')"
+        [[ "$country" == "00" ]] && country=""
+    fi
+
+    local hw_mode="g"
+    local is_5ghz=0
+    if (( channel >= 36 )); then
+        hw_mode="a"
+        is_5ghz=1
+    fi
+
+    install -d -m 0755 "$CONF_DIR"
+    umask 077
+    {
+        echo "interface=$iface"
+        echo "driver=nl80211"
+        echo "ssid=$EVA_HOTSPOT_SSID"
+        echo "hw_mode=$hw_mode"
+        echo "channel=$channel"
+        echo "ieee80211n=1"
+        if (( is_5ghz )); then
+            echo "ieee80211ac=1"
+            # 802.11d/h (regulatory + DFS) require a country code; hostapd
+            # refuses to start with them enabled otherwise.
+            if [[ -n "$country" ]]; then
+                echo "country_code=$country"
+                echo "ieee80211d=1"
+                echo "ieee80211h=1"
+            fi
+        elif [[ -n "$country" ]]; then
+            echo "country_code=$country"
+        fi
+        echo "wmm_enabled=1"
+        echo "auth_algs=1"
+        echo "wpa=2"
+        echo "wpa_key_mgmt=WPA-PSK"
+        echo "rsn_pairwise=CCMP"
+        echo "wpa_passphrase=$EVA_HOTSPOT_PSK"
+    } > "$HOSTAPD_CONF"
+}
+
+cmd_up() {
+    local iface
+    iface="$(detect_iface)" || { log "no wireless interface found"; exit 1; }
+    log "bringing up hotspot '$EVA_HOTSPOT_SSID' on $iface (channel $EVA_HOTSPOT_CHANNEL)"
+
+    install -d -m 0755 "$CONF_DIR"
+    echo "$iface" > "$IFACE_CACHE"
+
+    # Release the radio from NetworkManager so wpa_supplicant stops fighting
+    # hostapd for it. Non-fatal if NM is absent.
+    if command -v nmcli >/dev/null 2>&1; then
+        nmcli device set "$iface" managed no || log "warning: nmcli unmanage failed"
+    fi
+    # Make sure the radio is not soft-blocked, then bring the link up.
+    command -v rfkill >/dev/null 2>&1 && rfkill unblock wifi || true
+    ip link set "$iface" up || true
+
+    write_hostapd_conf "$iface"
+
+    # Assign the gateway address so the phone has a route/DNS target.
+    ip addr flush dev "$iface" || true
+    ip addr add "$EVA_HOTSPOT_GATEWAY_CIDR" dev "$iface" || true
+
+    # DHCP server so the phone leases an address. Backgrounded into this unit's
+    # cgroup; systemd stops it together with hostapd. Non-fatal if missing.
+    if command -v dnsmasq >/dev/null 2>&1; then
+        dnsmasq \
+            --keep-in-foreground \
+            --bind-dynamic \
+            --except-interface=lo \
+            --interface="$iface" \
+            --dhcp-range="$EVA_HOTSPOT_DHCP_RANGE" \
+            --dhcp-option=3,"$EVA_HOTSPOT_GATEWAY_IP" \
+            --dhcp-option=6,"$EVA_HOTSPOT_GATEWAY_IP" \
+            --no-resolv &
+    else
+        log "warning: dnsmasq not found; phone will not get a DHCP lease"
+    fi
+
+    # Become hostapd: makes it the service main PID for clean signalling.
+    exec hostapd "$HOSTAPD_CONF"
+}
+
+cmd_down() {
+    local iface=""
+    [[ -f "$IFACE_CACHE" ]] && iface="$(cat "$IFACE_CACHE" 2>/dev/null || true)"
+    [[ -z "$iface" ]] && iface="$(detect_iface || true)"
+
+    if [[ -n "$iface" ]]; then
+        ip addr flush dev "$iface" 2>/dev/null || true
+        if command -v nmcli >/dev/null 2>&1; then
+            nmcli device set "$iface" managed yes 2>/dev/null || true
+        fi
+        log "hotspot on $iface torn down"
+    fi
+    rm -f "$HOSTAPD_CONF" "$IFACE_CACHE" 2>/dev/null || true
+}
+
+case "${1:-}" in
+    up)   cmd_up ;;
+    down) cmd_down ;;
+    *)    echo "usage: $0 up|down" >&2; exit 2 ;;
+esac

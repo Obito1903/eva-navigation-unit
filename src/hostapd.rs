@@ -68,7 +68,8 @@ impl HostapdHandle {
 
         // Write the hostapd config with the PSK to a private (0600) file.
         let conf_path = std::env::temp_dir().join("eva-hostapd.conf");
-        let conf = hostapd_conf(iface, ssid, psk, channel);
+        let country = detect_country_code();
+        let conf = hostapd_conf(iface, ssid, psk, channel, country.as_deref());
         write_private(&conf_path, conf.as_bytes())
             .map_err(|e| format!("failed to write hostapd config: {e}"))?;
 
@@ -154,7 +155,7 @@ impl Drop for HostapdHandle {
 }
 
 /// Render a `hostapd` configuration for a WPA2-PSK access point.
-fn hostapd_conf(iface: &str, ssid: &str, psk: &str, channel: i32) -> String {
+fn hostapd_conf(iface: &str, ssid: &str, psk: &str, channel: i32, country: Option<&str>) -> String {
     // channel 0 means "auto"; pick a common non-DFS 5 GHz channel as the
     // default since Android Auto wireless requires a 5 GHz AP.
     let ch = if channel == 0 { 36 } else { channel };
@@ -170,10 +171,21 @@ fn hostapd_conf(iface: &str, ssid: &str, psk: &str, channel: i32) -> String {
     s.push_str("ieee80211n=1\n");
     if is_5ghz {
         s.push_str("ieee80211ac=1\n");
-        // Advertise country/DFS info so DFS-capable hardware can legally use
-        // radar channels on a real head unit.
-        s.push_str("ieee80211d=1\n");
-        s.push_str("ieee80211h=1\n");
+        // `ieee80211d`/`ieee80211h` (regulatory + DFS) require a country code;
+        // hostapd refuses to start with them enabled otherwise. Only advertise
+        // them when we know the host's regulatory domain, so DFS-capable
+        // hardware can legally use radar channels on a real head unit. Without
+        // a known country we omit them — the default non-DFS channel 36 does
+        // not need DFS anyway.
+        if let Some(cc) = country {
+            s.push_str(&format!("country_code={cc}\n"));
+            s.push_str("ieee80211d=1\n");
+            s.push_str("ieee80211h=1\n");
+        }
+    } else if let Some(cc) = country {
+        // 2.4 GHz never needs DFS, but a country code still keeps the AP within
+        // the host's regulatory power limits.
+        s.push_str(&format!("country_code={cc}\n"));
     }
     s.push_str("wmm_enabled=1\n");
     s.push_str("auth_algs=1\n");
@@ -182,6 +194,29 @@ fn hostapd_conf(iface: &str, ssid: &str, psk: &str, channel: i32) -> String {
     s.push_str("rsn_pairwise=CCMP\n");
     s.push_str(&format!("wpa_passphrase={psk}\n"));
     s
+}
+
+/// Detect the host's wireless regulatory domain (e.g. `FR`) by parsing
+/// `iw reg get`. Returns `None` when `iw` is unavailable or the domain is the
+/// world default (`00`), in which case the caller skips the regulatory
+/// (`ieee80211d`) config that would otherwise require a country code.
+fn detect_country_code() -> Option<String> {
+    let output = Command::new("iw").args(["reg", "get"]).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let line = line.trim();
+        // Lines look like: `country FR: DFS-ETSI`
+        if let Some(rest) = line.strip_prefix("country ") {
+            let code = rest.split(':').next().unwrap_or("").trim();
+            if code.len() == 2 && code != "00" {
+                return Some(code.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Run a command to completion and map a non-zero exit to an error.

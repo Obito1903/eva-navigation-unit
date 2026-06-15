@@ -63,6 +63,10 @@ System libraries required on the build host (Fedora package names):
 - [ ] Navigation channel UI (turn-by-turn display).
 - [ ] Multi-touch support (currently single pointer id 0).
 - [ ] Configurable video resolution / DPI from settings.
+- [ ] OBD2 Integration
+- [ ] BT managment view
+- [ ] Import any 3D mesh for background render
+- [ ] Improve UI for CAR use
 
 ### Longer term
 - [ ] Persisted user preferences.

@@ -130,7 +130,7 @@ impl AndroidAutoContainer {
                         }
                     }
                 } else {
-                    log::info!("Wireless Android Auto disabled — skipping wifi setup");
+                    log::debug!("Wireless Android Auto disabled — skipping wifi setup");
                     String::new()
                 };
 
@@ -170,7 +170,7 @@ impl AndroidAutoContainer {
                                     .await;
                             }
                             MessageToBluetoothHost::CancelDisplayPasskey => {
-                                log::info!("Cancel passkey");
+                                log::debug!("Cancel passkey");
                             }
                         }
                     }
@@ -195,6 +195,7 @@ impl AndroidAutoContainer {
                         }
                     })
                     .expect("No bluetooth hardware found");
+                log::info!("Bluetooth adapter ready ({bluetooth_address}); discoverable");
 
                 // ── Protocol setup ────────────────────────────────────────
                 let aauto = tokio::sync::mpsc::channel(50);
@@ -247,7 +248,7 @@ impl AndroidAutoContainer {
                         log::info!("android-auto protocol exited");
                     }
                     _ = kill.1 => {
-                        log::info!("Container killed");
+                        log::debug!("Container killed");
                     }
                 }
                 Ok::<(), String>(())

@@ -94,12 +94,17 @@ pub(crate) fn build_audio_streams() -> (
     let ai = host.default_input_device();
     let ao = host.default_output_device();
 
+    if ai.is_none() {
+        log::debug!("No default audio input device found; microphone unavailable");
+    }
+
     if let Some(ao) = &ao {
         let media = build_output_stream_for(ao, 48000, 2, 48000, "media");
         let sys = build_output_stream_for(ao, 16000, 1, 16000, "system");
         let speech = build_output_stream_for(ao, 16000, 1, 16000, "speech");
         (ai, media, sys, speech)
     } else {
+        log::warn!("No default audio output device found; Android Auto audio disabled");
         (ai, None, None, None)
     }
 }

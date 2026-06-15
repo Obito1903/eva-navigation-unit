@@ -75,6 +75,6 @@ async fn build_hotspot(
         .add_and_activate_connection(&settings, &wifi_device, &any)
         .await
         .map_err(|e| e.to_string())?;
-    log::info!("Hotspot connection path: {conn_path}");
+    log::debug!("Hotspot connection path: {conn_path}");
     Ok(())
 }

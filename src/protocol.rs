@@ -117,6 +117,7 @@ impl android_auto::AndroidAutoSensorTrait for AndroidAuto {
         stype: android_auto::Wifi::sensor_type::Enum,
     ) -> Result<(), ()> {
         if self.sensors.sensors.contains(&stype) {
+            log::debug!("Starting sensor {stype:?}");
             let mut m3 = android_auto::Wifi::SensorEventIndication::new();
             match stype {
                 android_auto::Wifi::sensor_type::Enum::DRIVING_STATUS => {
@@ -241,7 +242,7 @@ impl android_auto::AndroidAutoAudioInputTrait for AndroidAuto {
                     let msg =
                         android_auto::AndroidAutoMessage::Audio(Some(timestamp), bytes);
                     if let Err(e) = android_send.try_send(msg.sendable()) {
-                        log::warn!("Dropped audio input frame: {:?}", e);
+                        log::debug!("Dropped audio input frame: {:?}", e);
                     }
                 },
                 |err| log::error!("Audio input error: {:?}", err),
@@ -269,7 +270,7 @@ impl android_auto::AndroidAutoAudioInputTrait for AndroidAuto {
         chan: u8,
         ack: android_auto::Wifi::AVMediaAckIndication,
     ) {
-        log::info!("Ack audio input chan={chan} {ack:?}");
+        log::trace!("Ack audio input chan={chan} {ack:?}");
     }
 
     async fn stop_input_audio(&self) {

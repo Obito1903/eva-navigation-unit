@@ -61,7 +61,7 @@ pub(crate) fn wire(
         let wireless = wireless.clone();
         let cfg = cfg.clone();
         window.on_aa_wireless_changed(move |enabled| {
-            log::info!("Wireless Android Auto {}", if enabled { "enabled" } else { "disabled" });
+            log::debug!("Wireless Android Auto {}", if enabled { "enabled" } else { "disabled" });
             wireless.store(enabled, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.wireless = enabled;
@@ -75,7 +75,7 @@ pub(crate) fn wire(
         let usb = usb.clone();
         let cfg = cfg.clone();
         window.on_aa_usb_changed(move |enabled| {
-            log::info!("USB Android Auto {}", if enabled { "enabled" } else { "disabled" });
+            log::debug!("USB Android Auto {}", if enabled { "enabled" } else { "disabled" });
             usb.store(enabled, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.usb = enabled;
@@ -90,7 +90,7 @@ pub(crate) fn wire(
         let hotspot_backend = hotspot_backend.clone();
         let cfg = cfg.clone();
         window.on_hotspot_backend_changed(move |backend| {
-            log::info!(
+            log::debug!(
                 "Hotspot backend set to {} (applies on next connection)",
                 if backend == 1 { "hostapd" } else { "NetworkManager" }
             );
@@ -107,7 +107,7 @@ pub(crate) fn wire(
         let hotspot_channel = hotspot_channel.clone();
         let cfg = cfg.clone();
         window.on_hotspot_channel_changed(move |channel| {
-            log::info!("Hotspot (hostapd) channel set to {channel} (applies on next connection)");
+            log::debug!("Hotspot (hostapd) channel set to {channel} (applies on next connection)");
             hotspot_channel.store(channel, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.hotspot_channel = channel;
@@ -120,7 +120,7 @@ pub(crate) fn wire(
         let video = video.clone();
         let cfg = cfg.clone();
         window.on_aa_dpi_changed(move |dpi| {
-            log::info!("Android Auto DPI set to {dpi} (applies on next connection)");
+            log::debug!("Android Auto DPI set to {dpi} (applies on next connection)");
             video.dpi.store(dpi, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.dpi = dpi;
@@ -161,7 +161,7 @@ pub(crate) fn wire(
         let video = video.clone();
         let cfg = cfg.clone();
         window.on_aa_resolution_changed(move |resolution| {
-            log::info!("Android Auto resolution set to {resolution}p (applies on next connection)");
+            log::debug!("Android Auto resolution set to {resolution}p (applies on next connection)");
             video.resolution.store(resolution, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.resolution = resolution;
@@ -174,7 +174,7 @@ pub(crate) fn wire(
         let video = video.clone();
         let cfg = cfg.clone();
         window.on_aa_fps_changed(move |fps| {
-            log::info!("Android Auto frame rate set to {fps}fps (applies on next connection)");
+            log::debug!("Android Auto frame rate set to {fps}fps (applies on next connection)");
             video.fps.store(fps, Ordering::Relaxed);
             let mut cfg = cfg.borrow_mut();
             cfg.fps = fps;
@@ -186,7 +186,7 @@ pub(crate) fn wire(
     {
         let cfg = cfg.clone();
         window.on_transition_changed(move |mode| {
-            log::info!("View transition mode set to {mode}");
+            log::debug!("View transition mode set to {mode}");
             let mut cfg = cfg.borrow_mut();
             cfg.transition_mode = mode;
             cfg.save();
@@ -197,7 +197,7 @@ pub(crate) fn wire(
     {
         let cfg = cfg.clone();
         window.on_aa_video_transition_changed(move |mode| {
-            log::info!("Android Auto video transition mode set to {mode}");
+            log::debug!("Android Auto video transition mode set to {mode}");
             let mut cfg = cfg.borrow_mut();
             cfg.aa_video_transition_mode = mode;
             cfg.save();
@@ -208,7 +208,7 @@ pub(crate) fn wire(
     {
         let cfg = cfg.clone();
         window.on_transition_speed_changed(move |speed| {
-            log::info!("View transition speed set to {speed:.2}×");
+            log::debug!("View transition speed set to {speed:.2}×");
             let mut cfg = cfg.borrow_mut();
             cfg.transition_speed = speed;
             cfg.save();
@@ -219,7 +219,7 @@ pub(crate) fn wire(
     {
         let cfg = cfg.clone();
         window.on_aa_video_transition_speed_changed(move |speed| {
-            log::info!("Android Auto video transition speed set to {speed:.2}×");
+            log::debug!("Android Auto video transition speed set to {speed:.2}×");
             let mut cfg = cfg.borrow_mut();
             cfg.aa_video_transition_speed = speed;
             cfg.save();
@@ -231,7 +231,7 @@ pub(crate) fn wire(
         let cfg = cfg.clone();
         let window_weak = window_weak.clone();
         window.on_theme_changed(move |theme| {
-            log::info!("Color theme set to {theme}");
+            log::debug!("Color theme set to {theme}");
             if let Some(win) = window_weak.upgrade() {
                 Theme::get(&win).set_theme_id(theme);
             }
@@ -245,7 +245,7 @@ pub(crate) fn wire(
     {
         let cfg = cfg.clone();
         window.on_gfx_model_changed(move |model| {
-            log::info!("Background model set to {model}");
+            log::debug!("Background model set to {model}");
             let mut cfg = cfg.borrow_mut();
             cfg.gfx_model = model;
             cfg.save();
@@ -256,7 +256,7 @@ pub(crate) fn wire(
     {
         let cfg = cfg.clone();
         window.on_fullscreen_changed(move |enabled| {
-            log::info!("Fullscreen {}", if enabled { "enabled" } else { "disabled" });
+            log::debug!("Fullscreen {}", if enabled { "enabled" } else { "disabled" });
             let mut cfg = cfg.borrow_mut();
             cfg.fullscreen = enabled;
             cfg.save();

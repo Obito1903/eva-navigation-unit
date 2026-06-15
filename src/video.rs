@@ -18,6 +18,7 @@ pub(crate) fn spawn_decoder(
 ) {
     std::thread::spawn(move || {
         let mut decoder = openh264::decoder::Decoder::new().unwrap();
+        log::debug!("Video decoder thread started");
         while let Ok(cmd) = video_rx.recv() {
             // Coalesce everything already queued so we never fall behind: when
             // decode is slower than the incoming frame rate the backlog (and
@@ -74,7 +75,7 @@ pub(crate) fn spawn_decoder(
                                 }
                                 Ok(None) => {}
                                 Err(e) => {
-                                    log::error!("Video decode error: {e:?}");
+                                    log::debug!("Video decode error: {e:?}");
                                 }
                             }
                         }

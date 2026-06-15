@@ -40,13 +40,19 @@ fn main() -> Result<(), slint::PlatformError> {
     let cfg = config::Config::load();
     let _log_guards = logging::init(&cfg);
     log::info!(
-        "DPI configured: current={} min={} max={}",
+        "a310 v{} starting — wireless={}, usb={}",
+        env!("CARGO_PKG_VERSION"),
+        cfg.wireless,
+        cfg.usb
+    );
+    log::debug!(
+        "Video config: {}p@{}fps, dpi current={} min={} max={}",
+        cfg.resolution,
+        cfg.fps,
         cfg.dpi,
         cfg.min_dpi,
         cfg.max_dpi
     );
-    log::info!("Wireless Android Auto: {}", cfg.wireless);
-    log::info!("USB Android Auto: {}", cfg.usb);
 
     // Require an OpenGL(-ES) renderer so the wireframe-sphere underlay's
     // rendering notifier (which needs `GraphicsAPI::NativeOpenGL`) always

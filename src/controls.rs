@@ -31,13 +31,13 @@ impl Backlight {
             if max == 0 {
                 continue;
             }
-            log::info!("Backlight device: {}", base.display());
+            log::debug!("Backlight device: {}", base.display());
             return Some(Self {
                 brightness_path: base.join("brightness"),
                 max,
             });
         }
-        log::info!("No backlight device found under /sys/class/backlight");
+        log::debug!("No backlight device found under /sys/class/backlight");
         None
     }
 
@@ -89,7 +89,7 @@ impl Volume {
         } else if command_exists("amixer") {
             VolumeBackend::Amixer
         } else {
-            log::info!("No volume mixer (wpctl/pactl/amixer) found");
+            log::debug!("No volume mixer (wpctl/pactl/amixer) found");
             return None;
         };
         Some(Self { backend })

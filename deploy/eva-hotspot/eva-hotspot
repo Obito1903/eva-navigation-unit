@@ -32,6 +32,42 @@ EVA_HOTSPOT_GATEWAY_IP="${EVA_HOTSPOT_GATEWAY_IP:-10.42.0.1}"
 
 log() { echo "eva-hotspot: $*" >&2; }
 
+# Open the firewall for the AP link. firewalld's default zone blocks the DHCP
+# server port (UDP 67), so the phone associates but never gets a lease and
+# bails out of L3 provisioning. Move the AP interface into the 'trusted' zone
+# (accepts all traffic from the single phone client) for the hotspot lifetime;
+# close_firewall restores the previous zone. Non-fatal if firewalld is absent.
+open_firewall() {
+    local iface="$1"
+    command -v firewall-cmd >/dev/null 2>&1 || return 0
+    systemctl is-active --quiet firewalld 2>/dev/null || return 0
+    local cur
+    cur="$(firewall-cmd --get-zone-of-interface="$iface" 2>/dev/null || true)"
+    if [[ -n "$cur" && "$cur" != "no zone" ]]; then
+        echo "$cur" > "$CONF_DIR/fw_zone"
+    fi
+    if firewall-cmd --zone=trusted --change-interface="$iface" >/dev/null 2>&1; then
+        log "firewall: $iface moved to trusted zone for hotspot"
+    else
+        log "warning: could not move $iface to trusted zone; DHCP may be blocked"
+    fi
+}
+
+# Undo open_firewall: pull the interface out of the trusted zone and, if known,
+# return it to whatever zone it had before.
+close_firewall() {
+    local iface="$1"
+    command -v firewall-cmd >/dev/null 2>&1 || return 0
+    systemctl is-active --quiet firewalld 2>/dev/null || return 0
+    firewall-cmd --zone=trusted --remove-interface="$iface" >/dev/null 2>&1 || true
+    local prev=""
+    [[ -f "$CONF_DIR/fw_zone" ]] && prev="$(cat "$CONF_DIR/fw_zone" 2>/dev/null || true)"
+    if [[ -n "$prev" ]]; then
+        firewall-cmd --zone="$prev" --change-interface="$iface" >/dev/null 2>&1 || true
+    fi
+    rm -f "$CONF_DIR/fw_zone" 2>/dev/null || true
+}
+
 # Resolve the wireless interface: explicit override, cached value, or the first
 # interface that has a wireless sysfs node.
 detect_iface() {
@@ -121,6 +157,9 @@ cmd_up() {
     ip addr flush dev "$iface" || true
     ip addr add "$EVA_HOTSPOT_GATEWAY_CIDR" dev "$iface" || true
 
+    # Let DHCP/DNS/projection traffic from the phone through firewalld.
+    open_firewall "$iface"
+
     # DHCP server so the phone leases an address. Backgrounded into this unit's
     # cgroup; systemd stops it together with hostapd. Non-fatal if missing.
     if command -v dnsmasq >/dev/null 2>&1; then
@@ -148,6 +187,7 @@ cmd_down() {
 
     if [[ -n "$iface" ]]; then
         ip addr flush dev "$iface" 2>/dev/null || true
+        close_firewall "$iface"
         if command -v nmcli >/dev/null 2>&1; then
             nmcli device set "$iface" managed yes 2>/dev/null || true
         fi

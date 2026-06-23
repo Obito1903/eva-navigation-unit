@@ -41,6 +41,7 @@ impl AndroidAutoContainer {
         setup: android_auto::AndroidAutoSetup,
         wireless: Arc<AtomicBool>,
         usb: Arc<AtomicBool>,
+        reset_stale_accessory: bool,
         video: Arc<VideoSettings>,
         hotspot_backend: Arc<AtomicI32>,
         hotspot_channel: Arc<AtomicI32>,
@@ -241,6 +242,7 @@ impl AndroidAutoContainer {
                         hide_clock: Some(true),
                     },
                     custom_certificate: None,
+                    reset_stale_accessory,
                 };
 
                 tokio::select! {

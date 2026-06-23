@@ -34,6 +34,11 @@ pub(crate) const MAX_TRANSITION_SPEED: f32 = 3.0;
 pub(crate) const DEFAULT_WIRELESS: bool = true;
 /// Whether USB (wired) Android Auto is enabled by default.
 pub(crate) const DEFAULT_USB: bool = true;
+/// Whether to reset a USB phone left in AOA accessory mode at startup. This
+/// clears a stale Android Auto session inherited from a previous run (the
+/// programmatic equivalent of unplugging/replugging). Disable on controllers
+/// that misbehave on USB reset (e.g. the Nintendo Switch Tegra xHCI).
+pub(crate) const DEFAULT_RESET_STALE_ACCESSORY: bool = true;
 /// Default Android Auto video resolution (vertical lines: 720 or 1080).
 pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
 /// Default Android Auto video frame rate (30 or 60 fps).
@@ -82,6 +87,11 @@ struct Cli {
     /// Enable USB (wired) Android Auto.
     #[arg(long, env = "EVA_USB")]
     usb: Option<bool>,
+
+    /// Reset a USB phone left in AOA accessory mode at startup to clear a stale
+    /// Android Auto session (disable on the Nintendo Switch Tegra xHCI).
+    #[arg(long, env = "EVA_RESET_STALE_ACCESSORY")]
+    reset_stale_accessory: Option<bool>,
 
     /// Android Auto video resolution (720 or 1080).
     #[arg(long, env = "EVA_RESOLUTION")]
@@ -164,6 +174,7 @@ struct FileConfig {
     dpi: Option<i32>,
     wireless: Option<bool>,
     usb: Option<bool>,
+    reset_stale_accessory: Option<bool>,
     resolution: Option<i32>,
     fps: Option<i32>,
     transition_mode: Option<i32>,
@@ -214,6 +225,9 @@ pub(crate) struct Config {
     pub(crate) dpi: i32,
     pub(crate) wireless: bool,
     pub(crate) usb: bool,
+    /// Whether to reset a USB phone left in AOA accessory mode at startup to
+    /// clear a stale Android Auto session inherited from a previous run.
+    pub(crate) reset_stale_accessory: bool,
     pub(crate) resolution: i32,
     pub(crate) fps: i32,
     pub(crate) transition_mode: i32,
@@ -250,6 +264,10 @@ impl Config {
         let dpi = cli.dpi.or(file.dpi).unwrap_or(DEFAULT_DPI);
         let wireless = cli.wireless.or(file.wireless).unwrap_or(DEFAULT_WIRELESS);
         let usb = cli.usb.or(file.usb).unwrap_or(DEFAULT_USB);
+        let reset_stale_accessory = cli
+            .reset_stale_accessory
+            .or(file.reset_stale_accessory)
+            .unwrap_or(DEFAULT_RESET_STALE_ACCESSORY);
         let resolution = cli
             .resolution
             .or(file.resolution)
@@ -310,6 +328,7 @@ impl Config {
             dpi,
             wireless,
             usb,
+            reset_stale_accessory,
             resolution,
             fps,
             transition_mode,
@@ -335,6 +354,7 @@ impl Config {
         dpi: i32,
         wireless: bool,
         usb: bool,
+        reset_stale_accessory: bool,
         resolution: i32,
         fps: i32,
         transition_mode: i32,
@@ -364,6 +384,7 @@ impl Config {
             dpi,
             wireless,
             usb,
+            reset_stale_accessory,
             resolution: if resolution >= 1080 {
                 1080
             } else if resolution >= 720 {
@@ -395,6 +416,7 @@ impl Config {
             dpi: Some(self.dpi),
             wireless: Some(self.wireless),
             usb: Some(self.usb),
+            reset_stale_accessory: Some(self.reset_stale_accessory),
             resolution: Some(self.resolution),
             fps: Some(self.fps),
             transition_mode: Some(self.transition_mode),

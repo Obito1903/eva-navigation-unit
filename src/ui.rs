@@ -83,6 +83,11 @@ pub(crate) fn wire(
         });
     }
 
+    // Static USB recovery setting (no runtime toggle): reset a phone found in
+    // AOA accessory mode at worker startup to clear a stale Android Auto session
+    // inherited from a previous run. Read once and passed to each worker.
+    let reset_stale_accessory = cfg.borrow().reset_stale_accessory;
+
     // ── Hotspot backend: Settings UI → worker ─────────────────────────────
     // 0 = NetworkManager | 1 = hostapd. Applied on the next (re)connection.
     let hotspot_backend = Arc::new(AtomicI32::new(cfg.borrow().hotspot_backend));
@@ -268,6 +273,7 @@ pub(crate) fn wire(
         setup,
         wireless.clone(),
         usb.clone(),
+        reset_stale_accessory,
         video.clone(),
         hotspot_backend.clone(),
         hotspot_channel.clone(),
@@ -332,6 +338,7 @@ pub(crate) fn wire(
                         setup,
                         wireless.clone(),
                         usb.clone(),
+                        reset_stale_accessory,
                         video.clone(),
                         hotspot_backend.clone(),
                         hotspot_channel.clone(),

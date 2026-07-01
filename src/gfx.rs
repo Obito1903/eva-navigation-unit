@@ -17,6 +17,8 @@
 //! nothing/transparent, this underlay shows through.
 
 use std::num::NonZeroU32;
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 use glow::HasContext;
@@ -25,6 +27,7 @@ use slint::{
     GraphicsAPI, Image, RenderingState,
 };
 
+use crate::visualizer::VisualizerSystem;
 use crate::{AppWindow, Theme};
 
 /// Number of latitude parallels (excluding the poles).
@@ -1053,14 +1056,28 @@ fn theme_text_color(window: &AppWindow) -> (f32, f32, f32) {
     )
 }
 
-/// Install the wireframe-sphere underlay on `window`.
+/// Install the wireframe-sphere underlay and the visualizer system on `window`.
 ///
-/// Sets a single rendering notifier that manages the GL resources across the
-/// renderer lifecycle and animates the sphere while `gfx-bg-enabled` is set.
-pub(crate) fn install(window: &AppWindow) {
+/// Sets a single rendering notifier that manages GL resources for both systems.
+/// When `active-view == 3` the visualizer renders instead of the sphere.
+pub(crate) fn install(
+    window: &AppWindow,
+    consumer: crate::spectrum::AudioConsumer,
+    viz_renderer_id: Arc<AtomicI32>,
+    viz_theme: Arc<AtomicI32>,
+    viz_cfg: Arc<crate::config::VizConfig>,
+) {
     let weak = window.as_weak();
     let start = Instant::now();
     let mut underlay: Option<Underlay> = None;
+    let mut viz_gl: Option<glow::Context> = None;
+    let mut viz_system: Option<VisualizerSystem> = None;
+    // consumer is moved into VisualizerSystem on first VIZ view activation.
+    let mut viz_consumer: Option<crate::spectrum::AudioConsumer> = Some(consumer);
+    // Frame-time instrumentation for the VIZ view.
+    let mut viz_last_log = Instant::now();
+    let mut viz_frame_count: u32 = 0;
+    let mut viz_acc_ms: f32 = 0.0;
     // Dedicated spin clocks for the nav icons. Each only advances while its
     // view is active, so an icon pauses when another view is selected and
     // resumes from the same angle (rather than jumping with wall-clock time).
@@ -1074,21 +1091,70 @@ pub(crate) fn install(window: &AppWindow) {
     let result = window.window().set_rendering_notifier(move |state, graphics_api| {
         match state {
             RenderingState::RenderingSetup => {
-                let context = match graphics_api {
+                match graphics_api {
                     GraphicsAPI::NativeOpenGL { get_proc_address } => unsafe {
-                        glow::Context::from_loader_function_cstr(|s| get_proc_address(s))
+                        // Two Context instances from the same native GL context: they share
+                        // all GL state (same function pointers, same driver objects).
+                        let ctx1 = glow::Context::from_loader_function_cstr(|s| get_proc_address(s));
+                        let ctx2 = glow::Context::from_loader_function_cstr(|s| get_proc_address(s));
+                        underlay = Some(Underlay::new(ctx1));
+                        viz_gl = Some(ctx2);
                     },
                     _ => {
-                        log::error!("gfx: unexpected graphics API; wireframe underlay disabled");
+                        log::error!("gfx: unexpected graphics API; underlay disabled");
                         return;
                     }
                 };
-                underlay = Some(Underlay::new(context));
             }
             RenderingState::BeforeRendering => {
                 if let (Some(underlay), Some(win)) = (underlay.as_mut(), weak.upgrade()) {
-                    let enabled = win.get_gfx_bg_enabled();
+                    let active_view = win.get_active_view();
                     let size = win.window().size();
+
+                    // ── Visualizer view (index 3): hand off to VisualizerSystem ──
+                    if active_view == 3 {
+                        if let Some(gl) = viz_gl.as_ref() {
+                            // Lazy-initialise the VisualizerSystem on first use,
+                            // consuming the AudioConsumer from the capture thread.
+                            if viz_system.is_none() {
+                                if let Some(consumer) = viz_consumer.take() {
+                                    viz_system = Some(VisualizerSystem::new(
+                                        gl,
+                                        size.width,
+                                        size.height,
+                                        consumer,
+                                        viz_renderer_id.clone(),
+                                        viz_theme.clone(),
+                                        &viz_cfg,
+                                    ));
+                                }
+                            }
+                            if let Some(viz) = viz_system.as_mut() {
+                                let t0 = Instant::now();
+                                viz.render_frame(gl, size.width, size.height);
+                                let frame_ms = t0.elapsed().as_secs_f32() * 1000.0;
+                                viz_acc_ms += frame_ms;
+                                viz_frame_count += 1;
+                                let since_log = viz_last_log.elapsed().as_secs_f32();
+                                if since_log >= 2.0 {
+                                    let fps = viz_frame_count as f32 / since_log;
+                                    let avg_ms = viz_acc_ms / viz_frame_count as f32;
+                                    log::info!(
+                                        "viz: {fps:.1} fps  render {avg_ms:.2} ms/frame  \
+                                         res {}x{}",
+                                        size.width, size.height
+                                    );
+                                    viz_last_log = Instant::now();
+                                    viz_frame_count = 0;
+                                    viz_acc_ms = 0.0;
+                                }
+                            }
+                        }
+                        win.window().request_redraw();
+                        return;
+                    }
+
+                    let enabled = win.get_gfx_bg_enabled();
                     let time = start.elapsed().as_secs_f32();
                     let color = theme_color(&win);
                     let model = win.get_gfx_model();
@@ -1111,7 +1177,6 @@ pub(crate) fn install(window: &AppWindow) {
                     // re-rendered on a view change (or startup) — a parked,
                     // frozen frame. Resuming a view continues from the same
                     // angle (no wall-clock jump).
-                    let active_view = win.get_active_view();
                     let dt = (time - prev_time).max(0.0);
                     prev_time = time;
                     let icon_color = theme_text_color(&win);
@@ -1141,14 +1206,18 @@ pub(crate) fn install(window: &AppWindow) {
                         }
                     }
 
-                    // Keep animating while the GL background or either nav icon
-                    // view is active.
-                    if enabled || active_view == 0 || active_view == 1 {
+                    // Keep animating while the GL background, nav icons, or
+                    // the visualizer view is active.
+                    if enabled || active_view == 0 || active_view == 1 || active_view == 3 {
                         win.window().request_redraw();
                     }
                 }
             }
             RenderingState::RenderingTeardown => {
+                if let (Some(mut viz), Some(gl)) = (viz_system.take(), viz_gl.as_ref()) {
+                    viz.teardown(gl);
+                }
+                viz_gl = None;
                 drop(underlay.take());
             }
             _ => {}

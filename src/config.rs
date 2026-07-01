@@ -59,6 +59,39 @@ pub(crate) const DEFAULT_LOG_LEVEL: &str = "info";
 /// Default log output format (`text` | `json`).
 pub(crate) const DEFAULT_LOG_FORMAT: &str = "text";
 
+// ── Spectrum visualizer defaults ─────────────────────────────────────────────
+
+/// Number of frequency bands shown by the visualizer.
+pub(crate) const DEFAULT_VIZ_BANDS: u32 = 32;
+/// Maximum band count (also the SpectrumData array size).
+pub(crate) const MAX_VIZ_BANDS: u32 = 64;
+/// FFT window size in samples (power of two).
+pub(crate) const DEFAULT_VIZ_FFT_SIZE: u32 = 2048;
+/// Hop size in samples — how many new samples trigger one FFT update.
+/// Smaller = faster response, higher CPU cost. Must be ≤ fft_size / 2.
+pub(crate) const DEFAULT_VIZ_HOP: u32 = 256;
+/// Lowest frequency included in the spectrum display (Hz).
+pub(crate) const DEFAULT_VIZ_FREQ_MIN: f32 = 20.0;
+/// Highest frequency included in the spectrum display (Hz).
+pub(crate) const DEFAULT_VIZ_FREQ_MAX: f32 = 20_000.0;
+/// Input pre-smoother attack time constant (ms).
+/// Controls how quickly bars rise in response to audio transients.
+pub(crate) const DEFAULT_VIZ_INPUT_ATTACK_MS: f32 = 20.0;
+/// Input pre-smoother release time constant (ms).
+/// Controls how fast noise between FFT frames is suppressed on the falling edge.
+pub(crate) const DEFAULT_VIZ_INPUT_RELEASE_MS: f32 = 60.0;
+/// Gravity fall-speed multiplier (1.0 = CAVA default).
+/// Higher values make bars fall faster after a transient.
+pub(crate) const DEFAULT_VIZ_GRAVITY: f32 = 1.0;
+/// Integral (leaky-integrator) noise-reduction factor override.
+/// 0.0 = automatic calibration from the measured framerate (recommended).
+/// Values in (0, 1) override the auto value: higher = heavier bars / more smoothing.
+pub(crate) const DEFAULT_VIZ_NOISE_REDUCTION: f32 = 0.0;
+/// Horizontal gap between bar columns as a fraction of the slot width (0.0–0.45).
+pub(crate) const DEFAULT_VIZ_BAR_GAP: f32 = 0.08;
+/// Vertical gap between segment rows in pixels (0.0–20.0).
+pub(crate) const DEFAULT_VIZ_SEG_GAP_PX: f32 = 2.0;
+
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
 #[derive(Parser, Debug)]
@@ -137,6 +170,50 @@ struct Cli {
     #[arg(long, env = "EVA_HOTSPOT_CHANNEL")]
     hotspot_channel: Option<i32>,
 
+    /// Number of visualizer frequency bands (4..=64).
+    #[arg(long, env = "EVA_VIZ_BANDS")]
+    viz_bands: Option<u32>,
+
+    /// Visualizer FFT window size in samples (power of two: 512..=8192).
+    #[arg(long, env = "EVA_VIZ_FFT_SIZE")]
+    viz_fft_size: Option<u32>,
+
+    /// Visualizer FFT hop size in samples — controls update rate (64..=4096).
+    #[arg(long, env = "EVA_VIZ_HOP")]
+    viz_hop: Option<u32>,
+
+    /// Visualizer lowest displayed frequency in Hz.
+    #[arg(long, env = "EVA_VIZ_FREQ_MIN")]
+    viz_freq_min: Option<f32>,
+
+    /// Visualizer highest displayed frequency in Hz.
+    #[arg(long, env = "EVA_VIZ_FREQ_MAX")]
+    viz_freq_max: Option<f32>,
+
+    /// Visualizer input smoother attack time constant in milliseconds.
+    #[arg(long, env = "EVA_VIZ_INPUT_ATTACK_MS")]
+    viz_input_attack_ms: Option<f32>,
+
+    /// Visualizer input smoother release time constant in milliseconds.
+    #[arg(long, env = "EVA_VIZ_INPUT_RELEASE_MS")]
+    viz_input_release_ms: Option<f32>,
+
+    /// Visualizer gravity fall-speed multiplier (1.0 = CAVA default).
+    #[arg(long, env = "EVA_VIZ_GRAVITY")]
+    viz_gravity: Option<f32>,
+
+    /// Visualizer noise-reduction factor override (0.0 = auto from framerate).
+    #[arg(long, env = "EVA_VIZ_NOISE_REDUCTION")]
+    viz_noise_reduction: Option<f32>,
+
+    /// Visualizer horizontal gap between bar columns (fraction of slot width, 0.0–0.45).
+    #[arg(long, env = "EVA_VIZ_BAR_GAP")]
+    viz_bar_gap: Option<f32>,
+
+    /// Visualizer vertical gap between segment rows in pixels.
+    #[arg(long, env = "EVA_VIZ_SEG_GAP_PX")]
+    viz_seg_gap_px: Option<f32>,
+
     /// Global log level (error | warn | info | debug | trace).
     #[arg(long, env = "EVA_LOG_LEVEL")]
     log_level: Option<String>,
@@ -187,6 +264,7 @@ struct FileConfig {
     hotspot_backend: Option<i32>,
     hotspot_channel: Option<i32>,
     log: Option<LogFileConfig>,
+    viz: Option<VizFileConfig>,
 }
 
 /// Shape of the optional `[log]` table in the TOML configuration file.
@@ -199,6 +277,22 @@ struct LogFileConfig {
     bt: Option<String>,
     file: Option<PathBuf>,
     format: Option<String>,
+}
+
+/// Shape of the optional `[viz]` table in the TOML configuration file.
+#[derive(Deserialize, Serialize, Default, Debug)]
+struct VizFileConfig {
+    bands: Option<u32>,
+    fft_size: Option<u32>,
+    hop: Option<u32>,
+    freq_min: Option<f32>,
+    freq_max: Option<f32>,
+    input_attack_ms: Option<f32>,
+    input_release_ms: Option<f32>,
+    gravity: Option<f32>,
+    noise_reduction: Option<f32>,
+    bar_gap: Option<f32>,
+    seg_gap_px: Option<f32>,
 }
 
 /// Fully resolved logging / debug-pipeline configuration.
@@ -215,6 +309,66 @@ pub(crate) struct LogConfig {
     pub(crate) file: Option<PathBuf>,
     /// Output format: `text` or `json`.
     pub(crate) format: String,
+}
+
+/// Fully resolved spectrum visualizer tuning parameters.
+#[derive(Debug, Clone)]
+pub(crate) struct VizConfig {
+    /// Active band count (1..=MAX_VIZ_BANDS).
+    pub(crate) bands: usize,
+    /// FFT window size in samples (power of two).
+    pub(crate) fft_size: usize,
+    /// Hop size: a new FFT frame is triggered every this many mono samples.
+    pub(crate) hop: usize,
+    /// Lowest displayed frequency (Hz).
+    pub(crate) freq_min: f32,
+    /// Highest displayed frequency (Hz).
+    pub(crate) freq_max: f32,
+    /// Input pre-smoother attack time constant (ms).
+    pub(crate) input_attack_ms: f32,
+    /// Input pre-smoother release time constant (ms).
+    pub(crate) input_release_ms: f32,
+    /// Gravity fall-speed multiplier (1.0 = CAVA default).
+    pub(crate) gravity: f32,
+    /// Noise-reduction factor override (0.0 = auto from framerate).
+    pub(crate) noise_reduction: f32,
+    /// Horizontal gap between bar columns (fraction of slot width).
+    pub(crate) bar_gap: f32,
+    /// Vertical gap between segment rows in pixels.
+    pub(crate) seg_gap_px: f32,
+}
+
+impl VizConfig {
+    fn new(
+        bands: u32, fft_size: u32, hop: u32,
+        freq_min: f32, freq_max: f32,
+        input_attack_ms: f32, input_release_ms: f32,
+        gravity: f32, noise_reduction: f32,
+        bar_gap: f32, seg_gap_px: f32,
+    ) -> Self {
+        // Round fft_size down to the nearest power of two within [512, 8192].
+        let fft_size_raw = fft_size.clamp(512, 8192) as usize;
+        let mut fft_size = 512usize;
+        while fft_size * 2 <= fft_size_raw { fft_size *= 2; }
+
+        let bands = (bands as usize).clamp(4, MAX_VIZ_BANDS as usize);
+        let hop = (hop as usize).clamp(64, fft_size / 2).max(1);
+        let freq_min = freq_min.clamp(1.0, 23_000.0);
+        let freq_max = freq_max.clamp(freq_min + 100.0, 24_000.0);
+        Self {
+            bands,
+            fft_size,
+            hop,
+            freq_min,
+            freq_max,
+            input_attack_ms:   input_attack_ms.clamp(1.0, 500.0),
+            input_release_ms:  input_release_ms.clamp(1.0, 2_000.0),
+            gravity:           gravity.clamp(0.1, 10.0),
+            noise_reduction:   noise_reduction.clamp(0.0, 0.99),
+            bar_gap:           bar_gap.clamp(0.0, 0.45),
+            seg_gap_px:        seg_gap_px.clamp(0.0, 20.0),
+        }
+    }
 }
 
 /// Fully resolved runtime configuration.
@@ -246,6 +400,8 @@ pub(crate) struct Config {
     pub(crate) hotspot_channel: i32,
     /// Logging / debug-pipeline configuration.
     pub(crate) log: LogConfig,
+    /// Spectrum visualizer tuning parameters.
+    pub(crate) viz: VizConfig,
     /// Path the configuration is loaded from and saved back to.
     pub(crate) path: PathBuf,
 }
@@ -322,6 +478,21 @@ impl Config {
                 .unwrap_or_else(|| DEFAULT_LOG_FORMAT.to_string()),
         };
 
+        let file_viz = file.viz.unwrap_or_default();
+        let viz = VizConfig::new(
+            cli.viz_bands.or(file_viz.bands).unwrap_or(DEFAULT_VIZ_BANDS),
+            cli.viz_fft_size.or(file_viz.fft_size).unwrap_or(DEFAULT_VIZ_FFT_SIZE),
+            cli.viz_hop.or(file_viz.hop).unwrap_or(DEFAULT_VIZ_HOP),
+            cli.viz_freq_min.or(file_viz.freq_min).unwrap_or(DEFAULT_VIZ_FREQ_MIN),
+            cli.viz_freq_max.or(file_viz.freq_max).unwrap_or(DEFAULT_VIZ_FREQ_MAX),
+            cli.viz_input_attack_ms.or(file_viz.input_attack_ms).unwrap_or(DEFAULT_VIZ_INPUT_ATTACK_MS),
+            cli.viz_input_release_ms.or(file_viz.input_release_ms).unwrap_or(DEFAULT_VIZ_INPUT_RELEASE_MS),
+            cli.viz_gravity.or(file_viz.gravity).unwrap_or(DEFAULT_VIZ_GRAVITY),
+            cli.viz_noise_reduction.or(file_viz.noise_reduction).unwrap_or(DEFAULT_VIZ_NOISE_REDUCTION),
+            cli.viz_bar_gap.or(file_viz.bar_gap).unwrap_or(DEFAULT_VIZ_BAR_GAP),
+            cli.viz_seg_gap_px.or(file_viz.seg_gap_px).unwrap_or(DEFAULT_VIZ_SEG_GAP_PX),
+        );
+
         Self::sanitised(
             min_dpi,
             max_dpi,
@@ -341,6 +512,7 @@ impl Config {
             hotspot_backend,
             hotspot_channel,
             log,
+            viz,
             path,
         )
     }
@@ -367,6 +539,7 @@ impl Config {
         hotspot_backend: i32,
         hotspot_channel: i32,
         log: LogConfig,
+        viz: VizConfig,
         path: PathBuf,
     ) -> Self {
         let mut min_dpi = min_dpi.max(1);
@@ -404,6 +577,7 @@ impl Config {
             hotspot_backend: hotspot_backend.clamp(0, 1),
             hotspot_channel: hotspot_channel.max(0),
             log,
+            viz,
             path,
         }
     }
@@ -436,6 +610,19 @@ impl Config {
                 bt: self.log.bt.clone(),
                 file: self.log.file.clone(),
                 format: Some(self.log.format.clone()),
+            }),
+            viz: Some(VizFileConfig {
+                bands: Some(self.viz.bands as u32),
+                fft_size: Some(self.viz.fft_size as u32),
+                hop: Some(self.viz.hop as u32),
+                freq_min: Some(self.viz.freq_min),
+                freq_max: Some(self.viz.freq_max),
+                input_attack_ms: Some(self.viz.input_attack_ms),
+                input_release_ms: Some(self.viz.input_release_ms),
+                gravity: Some(self.viz.gravity),
+                noise_reduction: Some(self.viz.noise_reduction),
+                bar_gap: Some(self.viz.bar_gap),
+                seg_gap_px: Some(self.viz.seg_gap_px),
             }),
         };
         match toml::to_string_pretty(&file) {

@@ -37,6 +37,8 @@ pub(crate) fn wire(
     window: &AppWindow,
     setup: android_auto::AndroidAutoSetup,
     cfg: crate::config::Config,
+    viz_renderer_id: Arc<AtomicI32>,
+    viz_theme: Arc<AtomicI32>,
 ) {
     let window_weak = window.as_weak();
 
@@ -254,6 +256,24 @@ pub(crate) fn wire(
             let mut cfg = cfg.borrow_mut();
             cfg.gfx_model = model;
             cfg.save();
+        });
+    }
+
+    // ── Visualizer renderer: VIZ UI → gfx thread ──────────────────────────
+    {
+        let viz_renderer_id = viz_renderer_id.clone();
+        window.on_viz_renderer_changed(move |id| {
+            log::debug!("Visualizer renderer set to {id}");
+            viz_renderer_id.store(id, Ordering::Relaxed);
+        });
+    }
+
+    // ── Visualizer theme: VIZ UI → gfx thread ─────────────────────────────
+    {
+        let viz_theme = viz_theme.clone();
+        window.on_viz_theme_changed(move |id| {
+            log::debug!("Visualizer theme set to {id}");
+            viz_theme.store(id, Ordering::Relaxed);
         });
     }
 

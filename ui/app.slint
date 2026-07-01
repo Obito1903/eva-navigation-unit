@@ -12,6 +12,7 @@ import { ViewSlot } from "components/view_slot.slint";
 import { AndroidAutoView } from "views/android_auto.slint";
 import { SettingsView } from "views/settings.slint";
 import { QuickControlsView } from "views/quick_controls.slint";
+import { VisualizerView } from "views/visualizer.slint";
 
 // Re-export the palette global so Rust can switch themes at runtime.
 export { Theme }
@@ -21,10 +22,10 @@ export component AppWindow inherits Window {
     preferred-width: 1280px;
     preferred-height: 720px;
     full-screen <=> root.fullscreen;
-    // Transparent when the wireframe-sphere underlay is on, so the GL
-    // background (rendered behind all Slint content) shows through. When off,
-    // fall back to the solid theme background.
-    background: root.gfx-bg-enabled ? transparent : Theme.bg;
+    // Transparent when the wireframe-sphere underlay is on, or when the
+    // visualizer view is active (it is the GL background), so the GL renders
+    // through. When off and not on the VIZ view, fall back to the solid theme bg.
+    background: (root.gfx-bg-enabled || root.active-view == 3) ? transparent : Theme.bg;
 
     // Enables the rotating wireframe-sphere GL underlay (see src/gfx.rs).
     in-out property <bool> gfx-bg-enabled: true;
@@ -119,6 +120,14 @@ export component AppWindow inherits Window {
     // Fired by sidebar nav buttons
     callback nav-to(int);
 
+    // Visualizer renderer: 0 = BARS | 1 = ARC
+    in-out property <int> viz-renderer: 0;
+    callback viz-renderer-changed(int);
+
+    // Visualizer theme: 0 = VFD | 1 = NERV | 2 = MATRIX | 3 = NEON
+    in-out property <int> viz-theme: 0;
+    callback viz-theme-changed(int);
+
     HorizontalLayout {
         Sidebar {
             active-view: root.active-view;
@@ -128,6 +137,7 @@ export component AppWindow inherits Window {
                 { label: "AUTO", gl-icon: true, gl-id: 0 },
                 { label: "SYS", gl-icon: true, gl-id: 1 },
                 { label: "CTRL", icon: "\u{2600}", gl-icon: false },
+                { label: "VIZ", icon: "\u{266b}", gl-icon: false },
             ];
             nav-to(i) => {
                 root.nav-to(i);
@@ -253,6 +263,27 @@ export component AppWindow inherits Window {
                     brightness-level <=> root.brightness-level;
                     brightness-changed(v) => {
                         root.brightness-changed(v);
+                    }
+                }
+            }
+
+            // View 3 — Spectrum visualizer (slides in from the right)
+            ViewSlot {
+                active: root.active-view == 3;
+                slide: 32px;
+                mode: root.transition-mode;
+                speed: root.transition-speed;
+
+                VisualizerView {
+                    width: 100%;
+                    height: 100%;
+                    viz-renderer <=> root.viz-renderer;
+                    viz-renderer-changed(v) => {
+                        root.viz-renderer-changed(v);
+                    }
+                    viz-theme <=> root.viz-theme;
+                    viz-theme-changed(v) => {
+                        root.viz-theme-changed(v);
                     }
                 }
             }

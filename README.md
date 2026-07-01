@@ -4,6 +4,7 @@
 
 Install required system libraries:
 
+```
 sudo dnf install \
   gcc gcc-c++ make pkgconf-pkg-config perl \
   clang clang-devel \
@@ -15,6 +16,7 @@ sudo dnf install \
   alsa-lib-devel \
   dbus-devel \
   nasm
+```
 
 | Group | Packages | Required by |
 |-------|----------|-------------|

@@ -1,0 +1,127 @@
+import { Theme } from "../theme.slint";
+
+// Spectrum analyzer visualizer view.
+//
+// The actual spectrum bars are rendered by the OpenGL underlay (gfx.rs /
+// src/visualizer/) and show through the transparent background. This component
+// only contributes the control HUD at the bottom for switching renderer and
+// theme.
+
+export component VisualizerView inherits Rectangle {
+    // Renderer: 0 = BARS | 1 = ARC
+    in-out property <int> viz-renderer: 0;
+    callback viz-renderer-changed(int);
+
+    // Theme: 0 = VFD | 1 = NERV | 2 = MATRIX | 3 = NEON
+    in-out property <int> viz-theme: 0;
+    callback viz-theme-changed(int);
+
+    // Transparent so the GL underlay shows through.
+    background: transparent;
+
+    // ── Bottom HUD control bar ─────────────────────────────────────────────
+    Rectangle {
+        y: parent.height - self.height;
+        width: parent.width;
+        height: 48px;
+        background: Theme.panel.with-alpha(0.88);
+
+        // Thin top border
+        Rectangle {
+            width: parent.width;
+            height: 1px;
+            background: Theme.red-dim;
+        }
+
+        HorizontalLayout {
+            padding-left: 16px;
+            padding-right: 16px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+            spacing: 8px;
+            alignment: start;
+
+            // ── Section label ───────────────────────────────────────────
+            Text {
+                text: "RENDERER";
+                color: Theme.text-mute;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 1.5px;
+                vertical-alignment: center;
+            }
+
+            // ── Renderer selector ───────────────────────────────────────
+            for lbl[idx] in ["BARS", "ARC"]: Rectangle {
+                property <bool> active: root.viz-renderer == idx;
+                width: 52px;
+                height: 30px;
+                background: active ? Theme.panel-btn : transparent;
+                border-width: active ? 1px : 0px;
+                border-color: Theme.red;
+                border-radius: 3px;
+
+                Text {
+                    text: lbl;
+                    color: active ? Theme.text : Theme.text-mute;
+                    font-size: 11px;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: parent.width;
+                    height: parent.height;
+                }
+
+                TouchArea {
+                    clicked => {
+                        root.viz-renderer = idx;
+                        root.viz-renderer-changed(idx);
+                    }
+                }
+            }
+
+            // ── Spacer ──────────────────────────────────────────────────
+            Rectangle { horizontal-stretch: 1; }
+
+            Text {
+                text: "THEME";
+                color: Theme.text-mute;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 1.5px;
+                vertical-alignment: center;
+            }
+
+            // ── Theme selector ──────────────────────────────────────────
+            for lbl[idx] in ["VFD", "NERV", "MATRIX", "NEON"]: Rectangle {
+                property <bool> active: root.viz-theme == idx;
+                width: 58px;
+                height: 30px;
+                background: active ? Theme.panel-btn : transparent;
+                border-width: active ? 1px : 0px;
+                border-color: Theme.red;
+                border-radius: 3px;
+
+                Text {
+                    text: lbl;
+                    color: active ? Theme.text : Theme.text-mute;
+                    font-size: 11px;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    width: parent.width;
+                    height: parent.height;
+                }
+
+                TouchArea {
+                    clicked => {
+                        root.viz-theme = idx;
+                        root.viz-theme-changed(idx);
+                    }
+                }
+            }
+        }
+    }
+}

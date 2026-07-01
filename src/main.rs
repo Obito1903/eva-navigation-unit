@@ -29,11 +29,15 @@ mod logging;
 mod messages;
 mod nmrs_extensions;
 mod protocol;
+mod spectrum;
 mod ui;
 mod video;
+mod visualizer;
 
 use slint::ComponentHandle;
 use slint::Global;
+use std::sync::atomic::AtomicI32;
+use std::sync::Arc;
 
 slint::include_modules!();
 fn main() -> Result<(), slint::PlatformError> {
@@ -84,7 +88,14 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_hotspot_backend(cfg.hotspot_backend);
     window.set_hotspot_channel(cfg.hotspot_channel);
 
-    ui::wire(&window, setup, cfg);
-    gfx::install(&window);
+    // Start audio capture. The consumer is passed directly to gfx::install
+    // which moves it into VisualizerSystem on first VIZ view activation.
+    let viz_cfg = Arc::new(cfg.viz.clone());
+    let (_spectrum_capture, consumer) = spectrum::start_capture(&cfg.viz);
+    let viz_renderer_id = Arc::new(AtomicI32::new(0));
+    let viz_theme = Arc::new(AtomicI32::new(0));
+
+    ui::wire(&window, setup, cfg, viz_renderer_id.clone(), viz_theme.clone());
+    gfx::install(&window, consumer, viz_renderer_id, viz_theme, viz_cfg);
     window.run()
 }

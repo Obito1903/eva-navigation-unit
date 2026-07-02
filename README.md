@@ -102,6 +102,12 @@ cargo build --release
 DISPLAY=:0 ./target/release/eva-navigation-unit &> eva-ui.log   # NOTE: no sudo
 ```
 
+## Configuration
+
+`eva-navigation-unit` is configured via a TOML file, environment variables,
+and CLI flags. See [docs/configuration.md](docs/configuration.md) for the
+config file location, precedence rules, and the full list of options.
+
 ## Thanks
 
 This project would not be possible without

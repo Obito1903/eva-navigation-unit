@@ -58,6 +58,14 @@ pub(crate) const DEFAULT_HOTSPOT_CHANNEL: i32 = 36;
 pub(crate) const DEFAULT_LOG_LEVEL: &str = "info";
 /// Default log output format (`text` | `json`).
 pub(crate) const DEFAULT_LOG_FORMAT: &str = "text";
+/// Default sidebar header/branding text.
+pub(crate) const DEFAULT_CAR_NAME_SHORT: &str = "EVA-02";
+/// Default Android Auto "locked terminal" overlay app name text.
+pub(crate) const DEFAULT_APP_NAME: &str = "EVA NAVIGATION UNIT ";
+/// Default Android Auto "locked terminal" overlay long car name text.
+pub(crate) const DEFAULT_CAR_NAME_LONG: &str = "EVA-02";
+/// Default Android Auto "locked terminal" overlay waiting-for-connection text.
+pub(crate) const DEFAULT_AA_WAITING_TEXT: &str = "WAITING FOR ENTRY PLUG";
 
 // ── Spectrum visualizer defaults ─────────────────────────────────────────────
 
@@ -172,6 +180,22 @@ struct Cli {
     #[arg(long, env = "EVA_HOTSPOT_CHANNEL")]
     hotspot_channel: Option<i32>,
 
+    /// Sidebar header/branding text (default: "NERV").
+    #[arg(long, env = "EVA_CAR_NAME_SHORT")]
+    car_name_short: Option<String>,
+
+    /// Android Auto "locked terminal" overlay app name text (default: "EVA-02").
+    #[arg(long, env = "EVA_APP_NAME")]
+    app_name: Option<String>,
+
+    /// Android Auto "locked terminal" overlay long car name text.
+    #[arg(long, env = "EVA_CAR_NAME_LONG")]
+    car_name_long: Option<String>,
+
+    /// Android Auto "locked terminal" overlay waiting-for-connection text.
+    #[arg(long, env = "EVA_AA_WAITING_TEXT")]
+    aa_waiting_text: Option<String>,
+
     /// Number of visualizer frequency bands (4..=64).
     #[arg(long, env = "EVA_VIZ_BANDS")]
     viz_bands: Option<u32>,
@@ -269,6 +293,10 @@ struct FileConfig {
     fullscreen: Option<bool>,
     hotspot_backend: Option<i32>,
     hotspot_channel: Option<i32>,
+    car_name_short: Option<String>,
+    app_name: Option<String>,
+    car_name_long: Option<String>,
+    aa_waiting_text: Option<String>,
     log: Option<LogFileConfig>,
     viz: Option<VizFileConfig>,
 }
@@ -408,6 +436,14 @@ pub(crate) struct Config {
     pub(crate) hotspot_backend: i32,
     /// 5 GHz channel for the hostapd hotspot backend (0 = automatic).
     pub(crate) hotspot_channel: i32,
+    /// Sidebar header/branding text.
+    pub(crate) car_name_short: String,
+    /// Android Auto "locked terminal" overlay app name text.
+    pub(crate) app_name: String,
+    /// Android Auto "locked terminal" overlay long car name text.
+    pub(crate) car_name_long: String,
+    /// Android Auto "locked terminal" overlay waiting-for-connection text.
+    pub(crate) aa_waiting_text: String,
     /// Logging / debug-pipeline configuration.
     pub(crate) log: LogConfig,
     /// Spectrum visualizer tuning parameters.
@@ -470,6 +506,22 @@ impl Config {
             .hotspot_channel
             .or(file.hotspot_channel)
             .unwrap_or(DEFAULT_HOTSPOT_CHANNEL);
+        let car_name_short = cli
+            .car_name_short
+            .or(file.car_name_short)
+            .unwrap_or_else(|| DEFAULT_CAR_NAME_SHORT.to_string());
+        let app_name = cli
+            .app_name
+            .or(file.app_name)
+            .unwrap_or_else(|| DEFAULT_APP_NAME.to_string());
+        let car_name_long = cli
+            .car_name_long
+            .or(file.car_name_long)
+            .unwrap_or_else(|| DEFAULT_CAR_NAME_LONG.to_string());
+        let aa_waiting_text = cli
+            .aa_waiting_text
+            .or(file.aa_waiting_text)
+            .unwrap_or_else(|| DEFAULT_AA_WAITING_TEXT.to_string());
 
         let file_log = file.log.unwrap_or_default();
         let log = LogConfig {
@@ -522,6 +574,10 @@ impl Config {
             fullscreen,
             hotspot_backend,
             hotspot_channel,
+            car_name_short,
+            app_name,
+            car_name_long,
+            aa_waiting_text,
             log,
             viz,
             path,
@@ -549,6 +605,10 @@ impl Config {
         fullscreen: bool,
         hotspot_backend: i32,
         hotspot_channel: i32,
+        car_name_short: String,
+        app_name: String,
+        car_name_long: String,
+        aa_waiting_text: String,
         log: LogConfig,
         viz: VizConfig,
         path: PathBuf,
@@ -587,6 +647,10 @@ impl Config {
             fullscreen,
             hotspot_backend: hotspot_backend.clamp(0, 1),
             hotspot_channel: hotspot_channel.max(0),
+            car_name_short,
+            app_name,
+            car_name_long,
+            aa_waiting_text,
             log,
             viz,
             path,
@@ -613,6 +677,10 @@ impl Config {
             fullscreen: Some(self.fullscreen),
             hotspot_backend: Some(self.hotspot_backend),
             hotspot_channel: Some(self.hotspot_channel),
+            car_name_short: Some(self.car_name_short.clone()),
+            app_name: Some(self.app_name.clone()),
+            car_name_long: Some(self.car_name_long.clone()),
+            aa_waiting_text: Some(self.aa_waiting_text.clone()),
             log: Some(LogFileConfig {
                 level: Some(self.log.level.clone()),
                 ui: self.log.ui.clone(),

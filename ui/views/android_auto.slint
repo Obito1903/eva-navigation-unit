@@ -16,6 +16,11 @@ export component AndroidAutoView inherits Rectangle {
     in property <int> transition-mode: 0;
     // Speed multiplier for the start/stop transition (1.0 = default).
     in property <float> transition-speed: 1.0;
+    // Configurable branding text for the "locked terminal" overlay.
+    in property <string> app-name: "EVA NAVIGATION UNIT";
+    in property <string> car-name-long: "EVA-02";
+    in property <string> version-text: "0.1.0";
+    in property <string> waiting-text: "WAITING FOR ENTRY PLUG";
     callback touch-event(float, float, int);
 
     // Transparent so the GL wireframe-sphere underlay shows behind the
@@ -44,14 +49,14 @@ export component AndroidAutoView inherits Rectangle {
                 padding: 32px;
 
                 Text {
-                    text: "SECURITY · PERSONAL CODE";
+                    text: root.app-name;
                     color: Theme.text-dim;
                     font-size: 13px;
                     letter-spacing: 3px;
                     horizontal-alignment: center;
                 }
                 GlowText {
-                    text: "CENTRAL DOGMA";
+                    text: root.car-name-long;
                     text-color: Theme.text;
                     font-size: 52px;
                     font-weight: 800;
@@ -65,7 +70,7 @@ export component AndroidAutoView inherits Rectangle {
                     spacing: 10px;
 
                     Text {
-                        text: "FINAL GATE";
+                        text: "VERSION ";
                         color: Theme.text-dim;
                         font-size: 13px;
                         letter-spacing: 2px;
@@ -76,7 +81,7 @@ export component AndroidAutoView inherits Rectangle {
                         height: 22px;
                         background: Theme.red;
                         Text {
-                            text: "LOCKED";
+                            text: root.version-text;
                             color: #000000;
                             font-size: 12px;
                             font-weight: 800;
@@ -88,7 +93,7 @@ export component AndroidAutoView inherits Rectangle {
                 }
 
                 Text {
-                    text: "WAITING FOR ANDROID AUTO · INSERT CARD FULLY";
+                    text: root.waiting-text;
                     color: Theme.text-dim;
                     font-size: 12px;
                     letter-spacing: 2px;

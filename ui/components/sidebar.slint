@@ -16,6 +16,8 @@ export struct NavItem {
 export component Sidebar inherits Rectangle {
     in property <int> active-view;
     in property <[NavItem]> items;
+    // Header glyph text shown above the nav items (configurable branding).
+    in property <string> car-name-short: "EVA-02";
     // Live GL-rendered icon images, selected per item by `gl-id`. Kept out of
     // the `items` model so updating them each frame does not rebuild the
     // repeater (which would destroy NavButtons mid-click).
@@ -42,7 +44,7 @@ export component Sidebar inherits Rectangle {
         Rectangle {
             height: 40px;
             GlowText {
-                text: "NERV";
+                text: root.car-name-short;
                 text-color: Theme.text;
                 font-size: 16px;
                 font-weight: 800;

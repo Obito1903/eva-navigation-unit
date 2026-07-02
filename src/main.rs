@@ -87,6 +87,13 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_fullscreen(cfg.fullscreen);
     window.set_hotspot_backend(cfg.hotspot_backend);
     window.set_hotspot_channel(cfg.hotspot_channel);
+    window.set_car_name_short(cfg.car_name_short.as_str().into());
+    window.set_app_name(cfg.app_name.as_str().into());
+    window.set_car_name_long(cfg.car_name_long.as_str().into());
+    window.set_aa_waiting_text(cfg.aa_waiting_text.as_str().into());
+    // Always reflect the actual build version rather than a configurable
+    // value, so it can't drift from what was actually built.
+    window.set_aa_version_text(env!("CARGO_PKG_VERSION").into());
 
     // Start audio capture. The consumer is passed directly to gfx::install
     // which moves it into VisualizerSystem on first VIZ view activation.

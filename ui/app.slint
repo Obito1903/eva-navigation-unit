@@ -52,6 +52,15 @@ export component AppWindow inherits Window {
     in-out property <int> theme-id: 0;
     callback theme-changed(int);
 
+    // Sidebar header/branding text (configurable). Defaults to "NERV".
+    in-out property <string> car-name-short: "NERV";
+
+    // Configurable branding text for the Android Auto "locked terminal" overlay.
+    in-out property <string> app-name: "EVA-02";
+    in-out property <string> car-name-long: "EVA NAVIGATION UNIT";
+    in-out property <string> aa-version-text: "0.1.0";
+    in-out property <string> aa-waiting-text: "WAITING FOR ENTRY PLUG";
+
     // Updated by Rust each decoded video frame
     in-out property <image> video-frame;
 
@@ -133,6 +142,7 @@ export component AppWindow inherits Window {
             active-view: root.active-view;
             auto-icon: root.auto-icon;
             settings-icon: root.settings-icon;
+            car-name-short: root.car-name-short;
             items: [
                 { label: "AUTO", gl-icon: true, gl-id: 0 },
                 { label: "SYS", gl-icon: true, gl-id: 1 },
@@ -167,6 +177,10 @@ export component AppWindow inherits Window {
                     active: root.active-view == 0;
                     transition-mode: root.aa-video-transition-mode;
                     transition-speed: root.aa-video-transition-speed;
+                    app-name: root.app-name;
+                    car-name-long: root.car-name-long;
+                    version-text: root.aa-version-text;
+                    waiting-text: root.aa-waiting-text;
                     touch-event(x, y, k) => {
                         root.touch-event(x, y, k);
                     }

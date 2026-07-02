@@ -55,6 +55,13 @@ CLI flags always take precedence over the config file.
 | `fullscreen` | `--fullscreen` | `EVA_FULLSCREEN` | `false` | Start the window in fullscreen mode. |
 | `hotspot_backend` | `--hotspot-backend` | `EVA_HOTSPOT_BACKEND` | `0` | Wi-Fi hotspot backend for Android Auto wireless: `0` = NetworkManager, `1` = hostapd. See [hostapd install instructions](../README.md#installing-the-wi-fi-hotspot-service-for-android-auto-wireless). |
 | `hotspot_channel` | `--hotspot-channel` | `EVA_HOTSPOT_CHANNEL` | `36` | 5 GHz Wi-Fi channel used by the `hostapd` backend (`0` = automatic). Ignored by the NetworkManager backend. |
+| `car_name_short` | `--car-name-short` | `EVA_CAR_NAME_SHORT` | `"NERV"` | Header/branding text shown at the top of the sidebar. |
+| `app_name` | `--app-name` | `EVA_APP_NAME` | `"EVA-02"` | App name text shown on the Android Auto "locked terminal" overlay. |
+| `car_name_long` | `--car-name-long` | `EVA_CAR_NAME_LONG` | `"EVA NAVIGATION UNIT"` | Long car name text shown on the Android Auto "locked terminal" overlay. |
+| `aa_waiting_text` | `--aa-waiting-text` | `EVA_AA_WAITING_TEXT` | `"WAITING FOR ENTRY PLUG"` | Waiting-for-connection text shown on the Android Auto "locked terminal" overlay. |
+
+The version badge on the same overlay always reflects the actual build
+version (`CARGO_PKG_VERSION`) and is not configurable.
 
 Additionally, `--config <path>` / `EVA_CONFIG` selects an explicit config file
 path (see [Config file location](#config-file-location)); it has no
@@ -112,6 +119,10 @@ gfx_model = 0
 fullscreen = false
 hotspot_backend = 0
 hotspot_channel = 36
+car_name_short = "NERV"
+app_name = "EVA-02"
+car_name_long = "EVA NAVIGATION UNIT"
+aa_waiting_text = "WAITING FOR ENTRY PLUG"
 
 [log]
 level  = "info"

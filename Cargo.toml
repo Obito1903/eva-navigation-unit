@@ -5,7 +5,10 @@ edition = "2024"
 build = "build.rs"
 
 [dependencies]
-android-auto = { path = "../android-auto", features = ["usb", "wireless"] }
+android-auto = { git = "https://github.com/Obito1903/android-auto", branch = "a310-fixes", features = [
+    "usb",
+    "wireless",
+] }
 async-trait = "0.1"
 bluetooth-rust = "0.3"
 clap = { version = "4", features = ["derive", "env"] }

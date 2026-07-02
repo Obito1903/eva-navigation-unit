@@ -209,6 +209,7 @@ dependencies = [
 [[package]]
 name = "android-auto"
 version = "0.3.8"
+source = "git+https://github.com/Obito1903/android-auto?branch=a310-fixes#c454eaa00b48be874036064752113c260cb6c112"
 dependencies = [
  "async-trait",
  "aws-lc-rs",

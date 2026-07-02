@@ -3,37 +3,6 @@
 version = 4
 
 [[package]]
-name = "a310"
-version = "0.1.0"
-dependencies = [
- "android-auto",
- "async-trait",
- "bluetooth-rust",
- "clap",
- "console-subscriber",
- "cpal",
- "glow",
- "libpulse-binding",
- "libpulse-simple-binding",
- "log",
- "nmrs",
- "openh264",
- "ringbuf",
- "rustfft",
- "serde",
- "slint",
- "slint-build",
- "tokio",
- "toml 0.8.23",
- "tracing",
- "tracing-appender",
- "tracing-chrome",
- "tracing-subscriber",
- "zbus",
- "zvariant",
-]
-
-[[package]]
 name = "ab_glyph"
 version = "0.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1794,6 +1763,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "eva-navigation-unit"
+version = "0.1.0"
+dependencies = [
+ "android-auto",
+ "async-trait",
+ "bluetooth-rust",
+ "clap",
+ "console-subscriber",
+ "cpal",
+ "glow",
+ "libpulse-binding",
+ "libpulse-simple-binding",
+ "log",
+ "nmrs",
+ "openh264",
+ "ringbuf",
+ "rustfft",
+ "serde",
+ "slint",
+ "slint-build",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-appender",
+ "tracing-chrome",
+ "tracing-subscriber",
+ "zbus",
+ "zvariant",
 ]
 
 [[package]]

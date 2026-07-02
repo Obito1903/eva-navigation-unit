@@ -6,7 +6,7 @@
 //!   • optional, feature-gated layers for local visualisation
 //!     (`chrome-trace` → Perfetto, `tokio-console` → live async view).
 //!
-//! Both this crate (`a310`) and the `android-auto` crate emit through the
+//! Both this crate (`eva-navigation-unit`) and the `android-auto` crate emit through the
 //! `log` facade / `tracing` macros; the `tracing-log` feature bridges `log`
 //! records into `tracing`, so no changes are needed in `android-auto`.
 //!
@@ -15,10 +15,10 @@
 //!
 //! | Component | Module paths |
 //! |-----------|--------------|
-//! | UI    | `a310::ui`, `a310::controls`, `a310::gfx` |
-//! | Audio | `a310::audio`, `android_auto::{mediaaudio,speechaudio,sysaudio}` |
-//! | AA    | `a310::container`, `a310::protocol`, `android_auto::{lib,control,ssl,common,video}` |
-//! | BT    | `a310::hostapd`, `android_auto::{bluetooth,usb}` |
+//! | UI    | `eva_navigation_unit::ui`, `eva_navigation_unit::controls`, `eva_navigation_unit::gfx` |
+//! | Audio | `eva_navigation_unit::audio`, `android_auto::{mediaaudio,speechaudio,sysaudio}` |
+//! | AA    | `eva_navigation_unit::container`, `eva_navigation_unit::protocol`, `android_auto::{lib,control,ssl,common,video}` |
+//! | BT    | `eva_navigation_unit::hostapd`, `android_auto::{bluetooth,usb}` |
 
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::prelude::*;
@@ -27,18 +27,22 @@ use tracing_subscriber::{EnvFilter, Layer, Registry, fmt};
 use crate::config::{Config, LogConfig};
 
 /// Module paths that make up the UI component.
-const UI_MODULES: &[&str] = &["a310::ui", "a310::controls", "a310::gfx"];
+const UI_MODULES: &[&str] = &[
+    "eva_navigation_unit::ui",
+    "eva_navigation_unit::controls",
+    "eva_navigation_unit::gfx",
+];
 /// Module paths that make up the Audio component.
 const AUDIO_MODULES: &[&str] = &[
-    "a310::audio",
+    "eva_navigation_unit::audio",
     "android_auto::mediaaudio",
     "android_auto::speechaudio",
     "android_auto::sysaudio",
 ];
 /// Module paths that make up the Android Auto (AA) component.
 const AA_MODULES: &[&str] = &[
-    "a310::container",
-    "a310::protocol",
+    "eva_navigation_unit::container",
+    "eva_navigation_unit::protocol",
     "android_auto::lib",
     "android_auto::control",
     "android_auto::ssl",
@@ -47,7 +51,7 @@ const AA_MODULES: &[&str] = &[
 ];
 /// Module paths that make up the Bluetooth/transport (BT) component.
 const BT_MODULES: &[&str] = &[
-    "a310::hostapd",
+    "eva_navigation_unit::hostapd",
     "android_auto::bluetooth",
     "android_auto::usb",
 ];

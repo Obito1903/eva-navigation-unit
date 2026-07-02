@@ -1,6 +1,6 @@
-# a310 — Documentation
+# eva-navigation-unit — Documentation
 
-`a310` is a touch-first head-unit GUI for the [`android-auto`](../../android-auto) library,
+`eva-navigation-unit` is a touch-first head-unit GUI for the [`android-auto`](../../android-auto) library,
 built with the [Slint](https://slint.dev) toolkit. It is designed for use as a car
 infotainment front end.
 

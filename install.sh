@@ -14,7 +14,7 @@
 set -euo pipefail
 
 APP_NAME="eva-ui"
-BIN_SRC="target/release/a310"
+BIN_SRC="target/release/eva-navigation-unit"
 
 PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR="$PREFIX/bin"

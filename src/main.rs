@@ -1,4 +1,4 @@
-//! a310 — Android Auto head unit with a Slint GUI.
+//! eva-navigation-unit — Android Auto head unit with a Slint GUI.
 //!
 //! Architecture:
 //!   • Main thread   : Slint event loop (required by most windowing systems)
@@ -44,7 +44,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let cfg = config::Config::load();
     let _log_guards = logging::init(&cfg);
     log::info!(
-        "a310 v{} starting — wireless={}, usb={}",
+        "eva-navigation-unit v{} starting — wireless={}, usb={}",
         env!("CARGO_PKG_VERSION"),
         cfg.wireless,
         cfg.usb

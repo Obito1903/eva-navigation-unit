@@ -1,12 +1,12 @@
 ---
 name: debug-android-auto
-description: 'Debug the a310 / eva-ui app using its tracing logs and trace tooling. Use to investigate Android Auto protocol issues (USB/Wi-Fi/Bluetooth handshake, SSL frames, channel open, video/audio, pings), diagnose crashes, panics or hangs, capture a JSON bug-report log, or profile async tasks. Covers per-component log levels (UI/Audio/AA/BT), EVA_LOG_* env vars, --log-* CLI flags, config.toml [log] table, RUST_LOG, plus lnav, Perfetto/chrome-trace and tokio-console.'
+description: 'Debug the eva-navigation-unit / eva-ui app using its tracing logs and trace tooling. Use to investigate Android Auto protocol issues (USB/Wi-Fi/Bluetooth handshake, SSL frames, channel open, video/audio, pings), diagnose crashes, panics or hangs, capture a JSON bug-report log, or profile async tasks. Covers per-component log levels (UI/Audio/AA/BT), EVA_LOG_* env vars, --log-* CLI flags, config.toml [log] table, RUST_LOG, plus lnav, Perfetto/chrome-trace and tokio-console.'
 argument-hint: 'what you are investigating (e.g. "wireless handshake never completes", "crash on video channel open")'
 ---
 
-# Debugging a310 with Logs & Traces
+# Debugging eva-navigation-unit with Logs & Traces
 
-`a310` (the eva-ui binary) and the `android-auto` library both emit structured
+`eva-navigation-unit` (the eva-ui binary) and the `android-auto` library both emit structured
 [`tracing`](https://docs.rs/tracing) events through a single subscriber. Use this
 skill to pick the right verbosity, capture the right signal, and pin down Android
 Auto protocol failures or crashes.
@@ -24,10 +24,10 @@ Full reference: [docs/debug-pipeline.md](../../../docs/debug-pipeline.md).
 
 | Component | Module paths | Turn up for… |
 |-----------|--------------|--------------|
-| **AA**    | `a310::container`, `a310::protocol`, `android_auto::{lib, control, ssl, common, video}` | session lifecycle, SSL frames, channel open, version handshake |
-| **BT**    | `a310::hostapd`, `android_auto::{bluetooth, usb}` | pairing, RFCOMM, USB/AOA transport, raw transfer bytes |
-| **Audio** | `a310::audio`, `android_auto::{mediaaudio, speechaudio, sysaudio}` | media/voice/system audio streams |
-| **UI**    | `a310::ui`, `a310::controls`, `a310::gfx` | Slint UI, controls, rendering |
+| **AA**    | `eva_navigation_unit::container`, `eva_navigation_unit::protocol`, `android_auto::{lib, control, ssl, common, video}` | session lifecycle, SSL frames, channel open, version handshake |
+| **BT**    | `eva_navigation_unit::hostapd`, `android_auto::{bluetooth, usb}` | pairing, RFCOMM, USB/AOA transport, raw transfer bytes |
+| **Audio** | `eva_navigation_unit::audio`, `android_auto::{mediaaudio, speechaudio, sysaudio}` | media/voice/system audio streams |
+| **UI**    | `eva_navigation_unit::ui`, `eva_navigation_unit::controls`, `eva_navigation_unit::gfx` | Slint UI, controls, rendering |
 
 Levels (low → high verbosity): `error`, `warn`, `info`, `debug`, `trace`.
 
@@ -43,9 +43,9 @@ Levels (low → high verbosity): `error`, `warn`, `info`, `debug`, `trace`.
 | Connects then stalls before UI | version handshake / SSL, `android_auto::{lib, ssl, control}` | `--log-aa trace` |
 | `SSL Handshake complete` never logged | SSL setup, `android_auto::ssl` | `RUST_LOG="android_auto::ssl=trace"` |
 | Session drops after a few seconds | ping/handshake watchdogs, `android_auto::lib` | `--log-aa debug` (watch for watchdog errors) |
-| Black screen / no video | channel open + video, `android_auto::video`, `a310::protocol` | `--log-aa debug` |
-| No / choppy audio | `android_auto::{mediaaudio, speechaudio, sysaudio}`, `a310::audio` | `--log-audio debug` |
-| Sluggish UI / rendering glitches | `a310::{ui, controls, gfx}` | `--log-ui debug` |
+| Black screen / no video | channel open + video, `android_auto::video`, `eva_navigation_unit::protocol` | `--log-aa debug` |
+| No / choppy audio | `android_auto::{mediaaudio, speechaudio, sysaudio}`, `eva_navigation_unit::audio` | `--log-audio debug` |
+| Sluggish UI / rendering glitches | `eva_navigation_unit::{ui, controls, gfx}` | `--log-ui debug` |
 | Panic / unexpected exit | whole stack | see crash procedure below |
 
 ## Procedure: Investigate an Android Auto protocol issue
@@ -75,7 +75,7 @@ Levels (low → high verbosity): `error`, `warn`, `info`, `debug`, `trace`.
    signpost localizes the failure stage.
 4. **Pinpoint with `RUST_LOG`** when you know the exact module, silencing the rest:
    ```sh
-   RUST_LOG="android_auto::ssl=trace,android_auto::lib=debug,a310::ui=off" cargo run
+   RUST_LOG="android_auto::ssl=trace,android_auto::lib=debug,eva_navigation_unit::ui=off" cargo run
    ```
 5. **Inspect frame/byte detail at `trace`** (TX/RX control frames in `ssl`, raw
    USB bytes in `usb`) only once you've localized the stage — these are high-volume.

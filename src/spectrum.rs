@@ -64,7 +64,7 @@ pub fn start_capture(viz: &crate::config::VizConfig) -> (SpectrumCapture, AudioC
 
             let s = match psimple::Simple::new(
                 None,
-                "a310",
+                "eva-navigation-unit",
                 pulse::stream::Direction::Record,
                 Some("@DEFAULT_MONITOR@"),
                 "spectrum-analyzer",

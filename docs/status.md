@@ -47,7 +47,7 @@ System libraries required on the build host (Fedora package names):
 
 - `cargo build --release` succeeds with no errors (only upstream `android-auto` warnings
   remain).
-- Binary produced at `target/release/a310` / `target/debug/a310`.
+- Binary produced at `target/release/eva-navigation-unit` / `target/debug/eva-navigation-unit`.
 - Connected to a Pixel 8 Pro over USB: handshake completes, video streams, audio plays,
   and the connect/disconnect cycle recovers cleanly.
 

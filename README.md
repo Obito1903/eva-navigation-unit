@@ -1,4 +1,4 @@
-# EVA UI (A310)
+# EVA UI (eva-navigation-unit)
 
 ## Build Prerequisites (Fedora)
 
@@ -47,5 +47,5 @@ systemctl stop  eva-hotspot.service
 
 cd ~/Downloads/git/eva-ui
 cargo build --release
-DISPLAY=:0 ./target/release/a310 &> eva-ui.log   # NOTE: no sudo
+DISPLAY=:0 ./target/release/eva-navigation-unit &> eva-ui.log   # NOTE: no sudo
 ```

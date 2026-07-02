@@ -229,13 +229,13 @@ impl AndroidAutoContainer {
 
                 let config = android_auto::AndroidAutoConfiguration {
                     unit: HeadUnitInfo {
-                        name: "a310".to_string(),
-                        car_model: "a310".to_string(),
+                        name: "eva-navigation-unit".to_string(),
+                        car_model: "eva-navigation-unit".to_string(),
                         car_year: "2024".to_string(),
                         car_serial: "00000001".to_string(),
                         left_hand: false,
-                        head_manufacturer: "a310".to_string(),
-                        head_model: "a310".to_string(),
+                        head_manufacturer: "eva-navigation-unit".to_string(),
+                        head_model: "eva-navigation-unit".to_string(),
                         sw_build: "1".to_string(),
                         sw_version: "0.1.0".to_string(),
                         native_media: true,

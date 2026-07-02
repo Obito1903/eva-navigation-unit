@@ -78,9 +78,10 @@ void main() {
     float x_bar = (x_slot - h_half) / (1.0 - h_gap); // 0..1 inside bar body
 
     // ── Segment row ───────────────────────────────────────────────────────
-    // Index from bottom: seg 0 = lowest band, seg n_segs-1 = highest
+    // Vertically mirrored: seg 0 = topmost band, seg n_segs-1 = lowest, so
+    // bars grow downward from the top edge of the content area.
     float seg_slot = area_h / u_n_segs;
-    float seg_fi   = (area_h - y) / seg_slot;   // 0.0 = bottom, n_segs = top
+    float seg_fi   = y / seg_slot;              // 0.0 = top, n_segs = bottom
     float seg_i    = floor(seg_fi);
     float y_slot   = fract(seg_fi);             // 0..1 within segment slot
 

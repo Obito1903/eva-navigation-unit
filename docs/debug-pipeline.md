@@ -1,6 +1,6 @@
 # Debug & Logging Pipeline
 
-`a310` uses [`tracing`](https://docs.rs/tracing) with
+`eva-navigation-unit` uses [`tracing`](https://docs.rs/tracing) with
 [`tracing-subscriber`](https://docs.rs/tracing-subscriber) for structured,
 per-component logging. Logs from the [`android-auto`](../../android-auto) library
 (which emits through the `log` facade) are bridged in automatically, so a single
@@ -17,10 +17,10 @@ raise or lower verbosity per subsystem.
 
 | Component | Module paths |
 |-----------|--------------|
-| **UI**    | `a310::ui`, `a310::controls`, `a310::gfx` |
-| **Audio** | `a310::audio`, `android_auto::{mediaaudio, speechaudio, sysaudio}` |
-| **AA**    | `a310::container`, `a310::protocol`, `android_auto::{lib, control, ssl, common, video}` |
-| **BT**    | `a310::hostapd`, `android_auto::{bluetooth, usb}` |
+| **UI**    | `eva_navigation_unit::ui`, `eva_navigation_unit::controls`, `eva_navigation_unit::gfx` |
+| **Audio** | `eva_navigation_unit::audio`, `android_auto::{mediaaudio, speechaudio, sysaudio}` |
+| **AA**    | `eva_navigation_unit::container`, `eva_navigation_unit::protocol`, `android_auto::{lib, control, ssl, common, video}` |
+| **BT**    | `eva_navigation_unit::hostapd`, `android_auto::{bluetooth, usb}` |
 
 Levels (lowest → highest verbosity): `error`, `warn`, `info`, `debug`, `trace`.
 
@@ -84,7 +84,7 @@ keep full [`EnvFilter`](https://docs.rs/tracing-subscriber/latest/tracing_subscr
 control for ad-hoc debugging:
 
 ```sh
-RUST_LOG="android_auto::ssl=trace,a310::ui=off" cargo run
+RUST_LOG="android_auto::ssl=trace,eva_navigation_unit::ui=off" cargo run
 ```
 
 ## File logging

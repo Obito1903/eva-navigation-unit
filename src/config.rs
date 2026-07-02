@@ -1,4 +1,4 @@
-//! Runtime configuration for a310.
+//! Runtime configuration for eva-navigation-unit.
 //!
 //! Values are resolved with the following precedence (highest wins):
 //!   1. CLI arguments        (e.g. `--min-dpi 120`)
@@ -97,7 +97,7 @@ pub(crate) const DEFAULT_VIZ_SEG_COUNT: u32 = 50;
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
 #[derive(Parser, Debug)]
-#[command(name = "a310", about = "Android Auto head unit")]
+#[command(name = "eva-navigation-unit", about = "Android Auto head unit")]
 struct Cli {
     /// Path to a TOML configuration file.
     #[arg(long, env = "EVA_CONFIG")]

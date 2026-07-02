@@ -139,10 +139,10 @@ pub trait SpectrumRenderer {
     fn teardown(&mut self, gl: &glow::Context);
 }
 
-pub fn make_renderer(renderer_id: i32, theme_id: i32, bar_gap: f32, seg_gap_px: f32) -> Box<dyn SpectrumRenderer> {
+pub fn make_renderer(renderer_id: i32, theme_id: i32, bar_gap: f32, seg_gap_px: f32, seg_count: usize) -> Box<dyn SpectrumRenderer> {
     match renderer_id {
         1 => Box::new(ArcRenderer::new(theme_id)),
-        _ => Box::new(BarsRenderer::new(theme_id, bar_gap, seg_gap_px)),
+        _ => Box::new(BarsRenderer::new(theme_id, bar_gap, seg_gap_px, seg_count)),
     }
 }
 
@@ -157,6 +157,7 @@ pub struct VisualizerSystem {
     pub pending_theme: Arc<AtomicI32>,
     bar_gap:    f32,
     seg_gap_px: f32,
+    seg_count:  usize,
 }
 
 impl VisualizerSystem {
@@ -173,7 +174,8 @@ impl VisualizerSystem {
         let initial_theme = pending_theme.load(Ordering::Relaxed);
         let bar_gap    = viz.bar_gap;
         let seg_gap_px = viz.seg_gap_px;
-        let mut renderer  = make_renderer(initial_id, initial_theme, bar_gap, seg_gap_px);
+        let seg_count  = viz.seg_count;
+        let mut renderer  = make_renderer(initial_id, initial_theme, bar_gap, seg_gap_px, seg_count);
         renderer.setup(gl, w, h);
         Self {
             processor:     SpectrumProcessor::new(consumer, viz),
@@ -184,6 +186,7 @@ impl VisualizerSystem {
             pending_theme,
             bar_gap,
             seg_gap_px,
+            seg_count,
         }
     }
 
@@ -193,7 +196,7 @@ impl VisualizerSystem {
 
         if new_id != self.current_id || new_theme != self.current_theme {
             self.active.teardown(gl);
-            self.active        = make_renderer(new_id, new_theme, self.bar_gap, self.seg_gap_px);
+            self.active        = make_renderer(new_id, new_theme, self.bar_gap, self.seg_gap_px, self.seg_count);
             self.active.setup(gl, w, h);
             self.current_id    = new_id;
             self.current_theme = new_theme;

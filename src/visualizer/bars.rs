@@ -10,7 +10,8 @@
 //!   • 28 discrete segment rows per bar — the "digital column" look
 //!   • Soft per-cell vignette (phosphor dot: centre brighter than edges)
 //!   • Subtle intra-cell scanline pattern (VFD pixel rows)
-//!   • Very faint unlit-segment glow so the display reads as glass
+//!   • Darkened but clearly visible unlit segments — the full grid silhouette
+//!     always reads, matching a real VFD's always-visible dark segments
 //!   • Additive bloom pass for the phosphor halo
 
 use std::num::NonZeroU32;
@@ -128,9 +129,10 @@ void main() {
 
     float in_shape = clamp(in_left + in_right + in_center, 0.0, 1.0);
 
-    // Pixels in the gaps between sub-elements → near-black
+    // Pixels in the gaps between sub-elements → near-black, but with a faint
+    // dim tint on inactive segments so the full grid silhouette stays visible.
     if (in_shape < 0.5) {
-        vec3 bg = (active > 0.5) ? act_color * 0.03 : u_color_dim * 0.01;
+        vec3 bg = (active > 0.5) ? act_color * 0.03 : u_color_dim * 0.06;
         gl_FragColor = vec4(bg, 1.0);
         return;
     }
@@ -153,8 +155,10 @@ void main() {
     } else if (active > 0.5) {
         color = act_color * cell_mod;
     } else {
-        // Unlit: very faint ghost glow — characteristic VFD glass look
-        color = u_color_dim * (0.07 * vignette);
+        // Unlit: dimmed but clearly visible silhouette — every segment in the
+        // grid should read as a dark phosphor element, not a near-invisible
+        // ghost, so the whole VFD matrix is always on screen at low contrast.
+        color = u_color_dim * (0.24 * vignette);
     }
 
     gl_FragColor = vec4(color, 1.0);
@@ -364,12 +368,13 @@ pub struct BarsRenderer {
     theme_id: i32,
     bar_gap: f32,
     seg_gap_px: f32,
+    seg_count: usize,
     state: Option<GlState>,
 }
 
 impl BarsRenderer {
-    pub fn new(theme_id: i32, bar_gap: f32, seg_gap_px: f32) -> Self {
-        Self { theme_id, bar_gap, seg_gap_px, state: None }
+    pub fn new(theme_id: i32, bar_gap: f32, seg_gap_px: f32, seg_count: usize) -> Self {
+        Self { theme_id, bar_gap, seg_gap_px, seg_count, state: None }
     }
 }
 
@@ -392,14 +397,11 @@ impl SpectrumRenderer for BarsRenderer {
 
     fn render(&mut self, gl: &glow::Context, w: u32, h: u32, bands: &[f32], peaks: &[f32]) {
         let Some(s) = &mut self.state else { return };
-        unsafe { render_bars(gl, s, w, h, bands, peaks, self.theme_id, self.bar_gap, self.seg_gap_px) };
+        unsafe { render_bars(gl, s, w, h, bands, peaks, self.theme_id, self.bar_gap, self.seg_gap_px, self.seg_count) };
     }
 }
 
 // ── Core render logic ─────────────────────────────────────────────────────────
-
-/// Number of discrete vertical segments per bar column.
-const N_SEGS: f32 = 50.0;
 
 unsafe fn render_bars(
     gl: &glow::Context,
@@ -411,6 +413,7 @@ unsafe fn render_bars(
     theme_id: i32,
     bar_gap: f32,
     seg_gap_px: f32,
+    seg_count: usize,
 ) {
     let n = bands.len().min(peaks.len()).min(BANDS);
     s.ensure_fbo(gl, w, h);
@@ -460,7 +463,7 @@ unsafe fn render_bars(
     gl.bind_texture(glow::TEXTURE_2D, Some(s.bar_data_tex));
     gl.uniform_1_i32(Some(&s.seg_u_bars),  1);
     gl.uniform_1_f32(Some(&s.seg_u_n_bands),  n as f32);
-    gl.uniform_1_f32(Some(&s.seg_u_n_segs),   N_SEGS);
+    gl.uniform_1_f32(Some(&s.seg_u_n_segs),   seg_count as f32);
     gl.uniform_1_f32(Some(&s.seg_u_width),    w as f32);
     gl.uniform_1_f32(Some(&s.seg_u_height),   h as f32);
     gl.uniform_1_f32(Some(&s.seg_u_sidebar),  SIDEBAR_W);

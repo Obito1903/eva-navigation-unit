@@ -91,6 +91,8 @@ pub(crate) const DEFAULT_VIZ_NOISE_REDUCTION: f32 = 0.0;
 pub(crate) const DEFAULT_VIZ_BAR_GAP: f32 = 0.08;
 /// Vertical gap between segment rows in pixels (0.0–20.0).
 pub(crate) const DEFAULT_VIZ_SEG_GAP_PX: f32 = 2.0;
+/// Number of discrete vertical VFD segments per bar column (8..=120).
+pub(crate) const DEFAULT_VIZ_SEG_COUNT: u32 = 50;
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -214,6 +216,10 @@ struct Cli {
     #[arg(long, env = "EVA_VIZ_SEG_GAP_PX")]
     viz_seg_gap_px: Option<f32>,
 
+    /// Visualizer number of discrete vertical VFD segments per bar column.
+    #[arg(long, env = "EVA_VIZ_SEG_COUNT")]
+    viz_seg_count: Option<u32>,
+
     /// Global log level (error | warn | info | debug | trace).
     #[arg(long, env = "EVA_LOG_LEVEL")]
     log_level: Option<String>,
@@ -293,6 +299,7 @@ struct VizFileConfig {
     noise_reduction: Option<f32>,
     bar_gap: Option<f32>,
     seg_gap_px: Option<f32>,
+    seg_count: Option<u32>,
 }
 
 /// Fully resolved logging / debug-pipeline configuration.
@@ -336,6 +343,8 @@ pub(crate) struct VizConfig {
     pub(crate) bar_gap: f32,
     /// Vertical gap between segment rows in pixels.
     pub(crate) seg_gap_px: f32,
+    /// Number of discrete vertical VFD segments per bar column.
+    pub(crate) seg_count: usize,
 }
 
 impl VizConfig {
@@ -344,7 +353,7 @@ impl VizConfig {
         freq_min: f32, freq_max: f32,
         input_attack_ms: f32, input_release_ms: f32,
         gravity: f32, noise_reduction: f32,
-        bar_gap: f32, seg_gap_px: f32,
+        bar_gap: f32, seg_gap_px: f32, seg_count: u32,
     ) -> Self {
         // Round fft_size down to the nearest power of two within [512, 8192].
         let fft_size_raw = fft_size.clamp(512, 8192) as usize;
@@ -367,6 +376,7 @@ impl VizConfig {
             noise_reduction:   noise_reduction.clamp(0.0, 0.99),
             bar_gap:           bar_gap.clamp(0.0, 0.45),
             seg_gap_px:        seg_gap_px.clamp(0.0, 20.0),
+            seg_count:         seg_count.clamp(8, 120) as usize,
         }
     }
 }
@@ -491,6 +501,7 @@ impl Config {
             cli.viz_noise_reduction.or(file_viz.noise_reduction).unwrap_or(DEFAULT_VIZ_NOISE_REDUCTION),
             cli.viz_bar_gap.or(file_viz.bar_gap).unwrap_or(DEFAULT_VIZ_BAR_GAP),
             cli.viz_seg_gap_px.or(file_viz.seg_gap_px).unwrap_or(DEFAULT_VIZ_SEG_GAP_PX),
+            cli.viz_seg_count.or(file_viz.seg_count).unwrap_or(DEFAULT_VIZ_SEG_COUNT),
         );
 
         Self::sanitised(
@@ -623,6 +634,7 @@ impl Config {
                 noise_reduction: Some(self.viz.noise_reduction),
                 bar_gap: Some(self.viz.bar_gap),
                 seg_gap_px: Some(self.viz.seg_gap_px),
+                seg_count: Some(self.viz.seg_count as u32),
             }),
         };
         match toml::to_string_pretty(&file) {

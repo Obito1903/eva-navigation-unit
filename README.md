@@ -39,11 +39,19 @@ to tailor the experience to whatever screen/SBC you're running it on.
 - [x] Live spectrum analyzer for audio visualization
   - Selectable analyzer theme and shape
 - [ ] Bluetooth & media control
+- [ ] Embeded media player
+  - [ ] Spotify connect
+  - [ ] Subsonic
+  - [ ] mpc/local file
+- [ ] Audio Equilizer & effects
 - Nice 90s wireframe-style interface
   - [x] Multiple color themes
 - [ ] OBD2
   - Display car telemetry in retro-style gauges and segment displays
+  - Send back car telemetry to AA (rpm, speed, fuel tank...)
   - Show OBD2 engine faults
+- [ ] Controller/GPIO input for integration with native car headunit buttons
+- [ ] Multi-point touch input for AA
 
 ## Build Prerequisites (Fedora)
 

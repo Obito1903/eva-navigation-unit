@@ -5,6 +5,20 @@ fully-featured head-unit replacement for older cars that either never had one
 or have a factory unit worth ripping out. The theme and aesthetic are inspired
 by 90s cyberpunk anime and the Evangelion universe.
 
+![Main screen](./docs/assets/main.png)
+
+<details>
+<summary>More screenshots</summary>
+
+| | |
+|---|---|
+| ![Main screen](./docs/assets/main.png) | ![Android Auto](./docs/assets/aa.png) |
+| ![Settings](./docs/assets/settings.png) | ![Spectrum visualizer](./docs/assets/viz.png) |
+
+</details>
+
+
+
 The current target hardware is a jailbroken Nintendo Switch OLED running
 L4T Fedora, but the goal is to not gatekeep the project to a single hardware
 configuration — hence the growing number of configuration options available

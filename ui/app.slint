@@ -64,6 +64,13 @@ export component AppWindow inherits Window {
     // Updated by Rust each decoded video frame
     in-out property <image> video-frame;
 
+    // Actual size (logical px) of the Android Auto video viewport (the
+    // content area, i.e. the window minus the sidebar). Read by Rust to
+    // negotiate a video picture whose aspect ratio matches what's really
+    // displayed, instead of the whole window's aspect ratio.
+    out property <int> aa-viewport-width: content-area.width / 1px;
+    out property <int> aa-viewport-height: content-area.height / 1px;
+
     // Rotating wireframe car rendered by the GL layer (src/gfx.rs) for the
     // AUTO nav button. Updated each frame while the AUTO view is active.
     in-out property <image> auto-icon;
@@ -156,7 +163,7 @@ export component AppWindow inherits Window {
         }
 
         // ── Content area ──────────────────────────────────────────────────
-        Rectangle {
+        content-area := Rectangle {
             horizontal-stretch: 1;
             background: transparent;
             clip: true;

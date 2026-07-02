@@ -7,6 +7,46 @@
 use crate::messages::VideoCommand;
 use crate::AppWindow;
 
+/// Crop a decoded RGB8 buffer down to the centered region matching the
+/// `target_w`/`target_h` aspect ratio.
+///
+/// Android Auto only encodes at fixed 16:9 base resolutions
+/// (`protocol::build_video_configuration`), so when the actual video
+/// viewport isn't 16:9 the phone pads the picture with black
+/// letterbox/pillarbox margins baked directly into the decoded buffer rather
+/// than changing its pixel dimensions. Displaying that buffer as-is with
+/// `image-fit: fill` stretches those margins along with the real picture,
+/// visibly distorting it. Cropping to the viewport's own aspect ratio here
+/// removes the margins so `fill` only ever scales uniformly.
+fn crop_to_aspect(rgb: &[u8], w: usize, h: usize, target_w: i32, target_h: i32) -> (u32, u32, Vec<u8>) {
+    if target_w <= 0 || target_h <= 0 || w == 0 || h == 0 {
+        return (w as u32, h as u32, rgb.to_vec());
+    }
+    let target_aspect = target_w as f64 / target_h as f64;
+    let candidate_w = (h as f64 * target_aspect).round() as usize;
+    let (crop_w, crop_h) = if candidate_w <= w {
+        (candidate_w.max(1), h)
+    } else {
+        let candidate_h = ((w as f64 / target_aspect).round() as usize).max(1);
+        (w, candidate_h.min(h))
+    };
+    if crop_w >= w && crop_h >= h {
+        return (w as u32, h as u32, rgb.to_vec());
+    }
+    let x0 = (w - crop_w) / 2;
+    let y0 = (h - crop_h) / 2;
+    let stride = w * 3;
+    let crop_stride = crop_w * 3;
+    let mut out = vec![0u8; crop_w * crop_h * 3];
+    for row in 0..crop_h {
+        let src_start = (y0 + row) * stride + x0 * 3;
+        let dst_start = row * crop_stride;
+        out[dst_start..dst_start + crop_stride]
+            .copy_from_slice(&rgb[src_start..src_start + crop_stride]);
+    }
+    (crop_w as u32, crop_h as u32, out)
+}
+
 /// Spawn the video decoder thread.
 ///
 /// It owns the openh264 decoder, receives [`VideoCommand`]s over `video_rx`,
@@ -59,12 +99,15 @@ pub(crate) fn spawn_decoder(
                                     let weak = window_weak.clone();
                                     let _ = slint::invoke_from_event_loop(move || {
                                         if let Some(win) = weak.upgrade() {
+                                            let target_w = win.get_aa_viewport_width();
+                                            let target_h = win.get_aa_viewport_height();
+                                            let (cw, ch, cropped) =
+                                                crop_to_aspect(&rgb, w, h, target_w, target_h);
                                             let mut buf =
                                                 slint::SharedPixelBuffer::<slint::Rgb8Pixel>::new(
-                                                    w as u32,
-                                                    h as u32,
+                                                    cw, ch,
                                                 );
-                                            buf.make_mut_bytes().copy_from_slice(&rgb);
+                                            buf.make_mut_bytes().copy_from_slice(&cropped);
                                             win.set_video_frame(slint::Image::from_rgb8(buf));
                                             // First real frame is now mounted —
                                             // let the UI play the start
@@ -85,3 +128,4 @@ pub(crate) fn spawn_decoder(
         }
     });
 }
+

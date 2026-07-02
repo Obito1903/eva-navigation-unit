@@ -16,15 +16,20 @@ use std::sync::Arc;
 /// How often the UI thread drains messages coming from the worker.
 const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(16);
 
-/// Copy the window's current size into the shared video settings so the next
-/// (re)connection negotiates a picture matching the live screen aspect ratio.
-/// Falls back to 16:9 (1280×720) before the window has been realised.
+/// Copy the actual Android Auto video viewport size (the content area, i.e.
+/// the window *minus the sidebar*) into the shared video settings so the next
+/// (re)connection negotiates a picture matching what is really displayed —
+/// not the whole window's aspect ratio, which is wider than the visible
+/// video area and previously caused the picture to look vertically
+/// stretched. Falls back to a 1184×720 (16:9 window minus the 96px sidebar)
+/// before the window has been laid out.
 fn refresh_screen_size(win: &AppWindow, video: &VideoSettings) {
-    let size = win.window().size();
-    let (w, h) = if size.width == 0 || size.height == 0 {
-        (1280, 720)
+    let w = win.get_aa_viewport_width();
+    let h = win.get_aa_viewport_height();
+    let (w, h) = if w <= 0 || h <= 0 {
+        (1184, 720)
     } else {
-        (size.width, size.height)
+        (w as u32, h as u32)
     };
     video.screen_w.store(w, Ordering::Relaxed);
     video.screen_h.store(h, Ordering::Relaxed);
@@ -47,12 +52,14 @@ pub(crate) fn wire(
     let cfg = Rc::new(RefCell::new(cfg));
 
     // Shared Android Auto video settings, read by the worker on every
-    // (re)connection. Seeded from config + a 16:9 fallback screen size.
+    // (re)connection. Seeded from config + a fallback viewport size
+    // (immediately overwritten by `refresh_screen_size` below once the
+    // window is realised).
     let video = Arc::new(VideoSettings {
         resolution: AtomicI32::new(cfg.borrow().resolution),
         fps: AtomicI32::new(cfg.borrow().fps),
         dpi: AtomicI32::new(cfg.borrow().dpi),
-        screen_w: AtomicU32::new(1280),
+        screen_w: AtomicU32::new(1184),
         screen_h: AtomicU32::new(720),
     });
     refresh_screen_size(window, &video);

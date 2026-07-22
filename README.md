@@ -44,7 +44,10 @@ to tailor the experience to whatever screen/SBC you're running it on.
   - [ ] Subsonic
   - [ ] mpc/local file
 - [ ] Audio Equilizer & effects
-- Nice 90s wireframe-style interface
+  - [X] EQ
+  - [X] Effect toggles
+  - [X] Complete JamesDSP controls
+- [X] Nice 90s wireframe-style interface
   - [x] Multiple color themes
 - [ ] OBD2
   - Display car telemetry in retro-style gauges and segment displays

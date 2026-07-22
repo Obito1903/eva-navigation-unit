@@ -3,6 +3,7 @@ import { Theme } from "../theme.slint";
 // NERV-styled on/off toggle switch. Emits `toggled(bool)` when tapped.
 export component Toggle inherits Rectangle {
     in-out property <bool> checked: false;
+    in property <bool> enabled: true;
     callback toggled(bool);
 
     width: 56px;
@@ -24,6 +25,7 @@ export component Toggle inherits Rectangle {
     }
 
     TouchArea {
+        enabled: root.enabled;
         clicked => {
             root.checked = !root.checked;
             root.toggled(root.checked);

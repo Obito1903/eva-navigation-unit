@@ -1,0 +1,262 @@
+import { Theme } from "../theme.slint";
+import { Toggle } from "../components/toggle.slint";
+import { CapsuleBarSliderVertical } from "../components/capsule_bar_slider.slint";
+
+// One JamesDSP Equalizer band: its (fixed) center frequency and current gain
+// in dB. Both come straight from JamesDSP's live `tone_eq` value — the
+// number of bands shown is simply `root.eq-bands.length`, never hardcoded.
+export struct EqBand {
+    freq: float,
+    gain: float,
+}
+
+// JamesDSP audio effects (Graphic EQ / Convolver / Equalizer / Bass Boost)
+// settings tab. JamesDSP itself is the source of truth for all values here —
+// this tab only mirrors/edits its live D-Bus state, nothing is cached
+// locally when JamesDSP isn't running.
+export component SettingsDspTab inherits Rectangle {
+    background: transparent;
+
+    // Defensive display clamp only — JamesDSP's own engine is the real
+    // limiter, this just bounds the slider's visual range.
+    property <float> min-db: -20.0;
+    property <float> max-db: 20.0;
+
+    // Whether the JamesDSP D-Bus service is currently reachable.
+    in property <bool> dsp-connected: false;
+
+    // Global bypass: true = DSP chain disabled (mirrors `!master_enable`).
+    in-out property <bool> bypass-enabled: false;
+    callback bypass-changed(bool);
+
+    in-out property <bool> graphiceq-enabled: false;
+    callback graphiceq-changed(bool);
+
+    in-out property <bool> convolver-enabled: false;
+    callback convolver-changed(bool);
+
+    in-out property <bool> equalizer-enabled: false;
+    callback equalizer-changed(bool);
+
+    in-out property <bool> bassboost-enabled: false;
+    callback bassboost-changed(bool);
+
+    // Equalizer bands, dynamically sized to whatever JamesDSP reports.
+    in property <[EqBand]> eq-bands: [];
+    // Fired continuously while dragging a band slider (live preview, not persisted).
+    callback eq-band-changed(int, float);
+    // Fired once when a band slider drag ends (persisted to disk).
+    callback eq-band-committed(int, float);
+
+    VerticalLayout {
+        alignment: start;
+        padding: 24px;
+        spacing: 16px;
+
+        Text {
+            text: "DSP / EQUALIZER";
+            color: Theme.text;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 3px;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.red-dim;
+        }
+
+        // ── Connection status banner ─────────────────────────────────────
+        if !root.dsp-connected : Rectangle {
+            height: 32px;
+            background: Theme.red-dim.with-alpha(0.35);
+            border-width: 1px;
+            border-color: Theme.red-dim;
+
+            Text {
+                text: "JAMESDSP NOT RUNNING — CONNECT VIA D-BUS TO CONFIGURE";
+                color: Theme.text-mute;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // ── Effects ───────────────────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+            opacity: root.dsp-connected ? 1.0 : 0.4;
+
+            Text {
+                text: "EFFECTS";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "GLOBAL BYPASS";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    enabled: root.dsp-connected;
+                    checked <=> root.bypass-enabled;
+                    toggled(on) => {
+                        root.bypass-changed(on);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "GRAPHIC EQ";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    enabled: root.dsp-connected;
+                    checked <=> root.graphiceq-enabled;
+                    toggled(on) => {
+                        root.graphiceq-changed(on);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "CONVOLVER";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    enabled: root.dsp-connected;
+                    checked <=> root.convolver-enabled;
+                    toggled(on) => {
+                        root.convolver-changed(on);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "EQUALIZER";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    enabled: root.dsp-connected;
+                    checked <=> root.equalizer-enabled;
+                    toggled(on) => {
+                        root.equalizer-changed(on);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "DYNAMIC BASS BOOST";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    enabled: root.dsp-connected;
+                    checked <=> root.bassboost-enabled;
+                    toggled(on) => {
+                        root.bassboost-changed(on);
+                    }
+                }
+            }
+        }
+
+        // ── Equalizer bands ──────────────────────────────────────────────
+        Text {
+            text: "EQUALIZER BANDS";
+            color: Theme.text-dim;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            opacity: root.dsp-connected ? 1.0 : 0.4;
+        }
+
+        bands-layout := HorizontalLayout {
+            opacity: root.dsp-connected ? 1.0 : 0.4;
+            spacing: 10px;
+            padding-top: 4px;
+            padding-bottom: 4px;
+
+            for band[idx] in root.eq-bands : VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 8px;
+
+                Text {
+                    min-width: 48px;
+                    horizontal-stretch: 1;
+                    text: Math.round(band.gain * 10) / 10 + "dB";
+                    color: Theme.text-mute;
+                    font-size: 11px;
+                    horizontal-alignment: center;
+                    overflow: clip;
+                }
+
+                band-slider := CapsuleBarSliderVertical {
+                    horizontal-stretch: 1;
+                    value: clamp((band.gain - root.min-db) / (root.max-db - root.min-db), 0.0, 1.0);
+                    value-changed(v) => {
+                        root.eq-band-changed(idx, root.min-db + v * (root.max-db - root.min-db));
+                    }
+                    value-committed(v) => {
+                        root.eq-band-committed(idx, root.min-db + v * (root.max-db - root.min-db));
+                    }
+                }
+
+                Text {
+                    min-width: 48px;
+                    horizontal-stretch: 1;
+                    text: band.freq >= 1000
+                        ? Math.round(band.freq / 100) / 10 + "k"
+                        : Math.round(band.freq) + "";
+                    color: Theme.text;
+                    font-size: 12px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    overflow: clip;
+                }
+            }
+        }
+    }
+}

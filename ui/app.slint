@@ -10,7 +10,7 @@ import { Theme } from "theme.slint";
 import { Sidebar } from "components/sidebar.slint";
 import { ViewSlot } from "components/view_slot.slint";
 import { AndroidAutoView } from "views/android_auto.slint";
-import { SettingsView } from "views/settings.slint";
+import { SettingsView, EqBand } from "views/settings.slint";
 import { QuickControlsView } from "views/quick_controls.slint";
 import { VisualizerView } from "views/visualizer.slint";
 
@@ -41,6 +41,22 @@ export component AppWindow inherits Window {
     // 5 GHz channel for the hostapd hotspot backend (0 = automatic).
     in-out property <int> hotspot-channel: 36;
     callback hotspot-channel-changed(int);
+
+    // JamesDSP D-Bus connection status and effect toggles (updated from Rust).
+    in-out property <bool> dsp-connected: false;
+    in-out property <bool> dsp-bypass-enabled: false;
+    callback dsp-bypass-changed(bool);
+    in-out property <bool> dsp-graphiceq-enabled: false;
+    callback dsp-graphiceq-changed(bool);
+    in-out property <bool> dsp-convolver-enabled: false;
+    callback dsp-convolver-changed(bool);
+    in-out property <bool> dsp-equalizer-enabled: false;
+    callback dsp-equalizer-changed(bool);
+    in-out property <bool> dsp-bassboost-enabled: false;
+    callback dsp-bassboost-changed(bool);
+    in-out property <[EqBand]> dsp-eq-bands: [];
+    callback dsp-eq-band-changed(int, float);
+    callback dsp-eq-band-committed(int, float);
 
     // Selects the wireframe model drawn by the GL underlay:
     // 0 = sphere | 1 = cube | 2 = car.
@@ -262,6 +278,34 @@ export component AppWindow inherits Window {
                     hotspot-channel <=> root.hotspot-channel;
                     hotspot-channel-changed(v) => {
                         root.hotspot-channel-changed(v);
+                    }
+                    dsp-connected: root.dsp-connected;
+                    dsp-bypass-enabled <=> root.dsp-bypass-enabled;
+                    dsp-bypass-changed(on) => {
+                        root.dsp-bypass-changed(on);
+                    }
+                    dsp-graphiceq-enabled <=> root.dsp-graphiceq-enabled;
+                    dsp-graphiceq-changed(on) => {
+                        root.dsp-graphiceq-changed(on);
+                    }
+                    dsp-convolver-enabled <=> root.dsp-convolver-enabled;
+                    dsp-convolver-changed(on) => {
+                        root.dsp-convolver-changed(on);
+                    }
+                    dsp-equalizer-enabled <=> root.dsp-equalizer-enabled;
+                    dsp-equalizer-changed(on) => {
+                        root.dsp-equalizer-changed(on);
+                    }
+                    dsp-bassboost-enabled <=> root.dsp-bassboost-enabled;
+                    dsp-bassboost-changed(on) => {
+                        root.dsp-bassboost-changed(on);
+                    }
+                    dsp-eq-bands: root.dsp-eq-bands;
+                    dsp-eq-band-changed(idx, v) => {
+                        root.dsp-eq-band-changed(idx, v);
+                    }
+                    dsp-eq-band-committed(idx, v) => {
+                        root.dsp-eq-band-committed(idx, v);
                     }
                 }
             }

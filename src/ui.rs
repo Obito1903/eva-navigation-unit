@@ -2,12 +2,15 @@
 //! spawns the video decoder, and pumps worker → UI messages on a timer.
 
 use crate::container::{AndroidAutoContainer, VideoSettings};
+use crate::jamesdsp::{Command as DspCommand, Effect as DspEffect, Event as DspEvent, JamesDspContainer};
 use crate::messages::{MessageFromAsync, MessageToAsync, VideoCommand};
 use crate::video;
 use crate::AppWindow;
+use crate::EqBand;
 use crate::Theme;
 use slint::ComponentHandle;
 use slint::Global;
+use slint::{ModelRc, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
@@ -295,6 +298,67 @@ pub(crate) fn wire(
         });
     }
 
+    // ── JamesDSP effects/EQ: Settings UI → JamesDSP D-Bus service ─────────
+    // JamesDSP's own D-Bus state is the sole source of truth here: nothing
+    // is cached/persisted locally, and the tab greys out (via `dsp-connected`)
+    // whenever the service isn't reachable.
+    let mut dsp_container = JamesDspContainer::new();
+    {
+        let send = dsp_container.send.clone();
+        window.on_dsp_bypass_changed(move |bypass_on| {
+            log::debug!(
+                "JamesDSP bypass {}",
+                if bypass_on { "enabled" } else { "disabled" }
+            );
+            // Bypass ON means the DSP chain is disabled, i.e. `master_enable = false`.
+            let _ = send.try_send(DspCommand::SetMasterEnable(!bypass_on));
+        });
+    }
+    {
+        let send = dsp_container.send.clone();
+        window.on_dsp_graphiceq_changed(move |on| {
+            let _ = send.try_send(DspCommand::SetEffect(DspEffect::GraphicEq, on));
+        });
+    }
+    {
+        let send = dsp_container.send.clone();
+        window.on_dsp_convolver_changed(move |on| {
+            let _ = send.try_send(DspCommand::SetEffect(DspEffect::Convolver, on));
+        });
+    }
+    {
+        let send = dsp_container.send.clone();
+        window.on_dsp_equalizer_changed(move |on| {
+            let _ = send.try_send(DspCommand::SetEffect(DspEffect::Equalizer, on));
+        });
+    }
+    {
+        let send = dsp_container.send.clone();
+        window.on_dsp_bassboost_changed(move |on| {
+            let _ = send.try_send(DspCommand::SetEffect(DspEffect::BassBoost, on));
+        });
+    }
+    {
+        let send = dsp_container.send.clone();
+        window.on_dsp_eq_band_changed(move |index, gain| {
+            let _ = send.try_send(DspCommand::SetEqBand {
+                index: index as usize,
+                gain,
+                commit: false,
+            });
+        });
+    }
+    {
+        let send = dsp_container.send.clone();
+        window.on_dsp_eq_band_committed(move |index, gain| {
+            let _ = send.try_send(DspCommand::SetEqBand {
+                index: index as usize,
+                gain,
+                commit: true,
+            });
+        });
+    }
+
     // ── Start android-auto in background ──────────────────────────────────
     let mut container = AndroidAutoContainer::new(
         setup,
@@ -421,6 +485,35 @@ pub(crate) fn wire(
 
     // Keep the timer alive for the lifetime of the program.
     std::mem::forget(timer);
+
+    // ── Poll JamesDSP → UI messages ────────────────────────────────────────
+    let dsp_window_weak = window.as_weak();
+    let dsp_timer = slint::Timer::default();
+    dsp_timer.start(slint::TimerMode::Repeated, POLL_INTERVAL, move || {
+        let Some(win) = dsp_window_weak.upgrade() else {
+            return;
+        };
+
+        while let Ok(DspEvent::Snapshot(snapshot)) = dsp_container.recv.try_recv() {
+            win.set_dsp_connected(snapshot.connected);
+            win.set_dsp_bypass_enabled(!snapshot.master_enable);
+            win.set_dsp_graphiceq_enabled(snapshot.graphiceq_enable);
+            win.set_dsp_convolver_enabled(snapshot.convolver_enable);
+            win.set_dsp_equalizer_enabled(snapshot.tone_enable);
+            win.set_dsp_bassboost_enabled(snapshot.bass_enable);
+
+            let bands: Vec<EqBand> = snapshot
+                .bands
+                .iter()
+                .map(|b| EqBand {
+                    freq: b.freq,
+                    gain: b.gain,
+                })
+                .collect();
+            win.set_dsp_eq_bands(ModelRc::new(VecModel::from(bands)));
+        }
+    });
+    std::mem::forget(dsp_timer);
 }
 
 /// Build an android-auto touch input message from UI-space coordinates.

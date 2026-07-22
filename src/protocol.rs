@@ -414,6 +414,21 @@ pub(crate) fn build_video_configuration(
     }
 }
 
+/// The base (pre-margin) pixel dimensions for a negotiated video resolution.
+///
+/// Android renders its UI inset by the negotiated `margin_width`/
+/// `margin_height` (see `build_video_configuration`), so the touchscreen
+/// surface actually used for touch coordinates is this base size *minus*
+/// those margins, matching the video-frame after it's cropped to the
+/// viewport's aspect ratio (see `crop_to_aspect` in `src/video.rs`).
+fn resolution_dimensions(res: android_auto::Wifi::video_resolution::Enum) -> (u16, u16) {
+    match res {
+        android_auto::Wifi::video_resolution::Enum::_1080p => (1920, 1080),
+        android_auto::Wifi::video_resolution::Enum::_720p => (1280, 720),
+        _ => (800, 480),
+    }
+}
+
 /// Parameters for [`AndroidAuto::new`], bundled to keep the call site
 /// readable and avoid a long positional argument list.
 pub(crate) struct AndroidAutoInit {
@@ -462,6 +477,15 @@ impl AndroidAuto {
         });
 
         let (ai, media_stream, sys_stream, speech_stream) = build_audio_streams();
+        // The touchscreen surface reported to Android must match the
+        // margin-adjusted "active" area it actually renders into (and that
+        // the video-frame gets cropped to), not the raw base resolution —
+        // otherwise every touch is scaled/offset relative to what's on screen.
+        let (base_w, base_h) = resolution_dimensions(video_config.resolution);
+        let touchscreen = (
+            base_w.saturating_sub(video_config.margin_width),
+            base_h.saturating_sub(video_config.margin_height),
+        );
 
         Self {
             inner: Arc::new(Mutex::new(AndroidAutoInner {
@@ -485,7 +509,7 @@ impl AndroidAuto {
             sensors: android_auto::SensorInformation { sensors },
             input_config: android_auto::InputConfiguration {
                 keycodes: vec![1, 2, 3, 4, 5],
-                touchscreen: Some((800, 480)),
+                touchscreen: Some(touchscreen),
             },
             usb_enabled,
         }

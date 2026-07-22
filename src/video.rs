@@ -18,6 +18,11 @@ use crate::AppWindow;
 /// `image-fit: fill` stretches those margins along with the real picture,
 /// visibly distorting it. Cropping to the viewport's own aspect ratio here
 /// removes the margins so `fill` only ever scales uniformly.
+///
+/// The cropped buffer's dimensions match the "active" resolution Android was
+/// told about via `TouchConfig` (see `resolution_dimensions` in
+/// `protocol.rs`), so touch coordinates mapped against `video-frame` line up
+/// with Android's touch coordinate space with no further offset needed.
 fn crop_to_aspect(rgb: &[u8], w: usize, h: usize, target_w: i32, target_h: i32) -> (u32, u32, Vec<u8>) {
     if target_w <= 0 || target_h <= 0 || w == 0 || h == 0 {
         return (w as u32, h as u32, rgb.to_vec());

@@ -127,7 +127,10 @@ export component AndroidAutoView inherits Rectangle {
         // Don't capture touches while this view is hidden.
         enabled: root.active;
 
-        // Map logical TouchArea coords → video source pixel coords.
+        // Map logical TouchArea coords → video source pixel coords. Both
+        // `video-frame` and the negotiated `TouchConfig` (see
+        // `resolution_dimensions` in src/protocol.rs) represent the same
+        // margin-adjusted "active" area, so no extra offset is needed here.
         pointer-event(e) => {
             root.touch-event(
                 video-touch.mouse-x * (root.video-frame.width / video-touch.width),

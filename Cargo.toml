@@ -39,6 +39,12 @@ console-subscriber = { version = "0.4", optional = true }
 zbus = { version = "5", optional = true }
 zvariant = { version = "5", optional = true }
 
+# Optional OBD2 support (off by default). `obd2-core` supplies the ELM327
+# adapter/session plumbing over our own Bluetooth RFCOMM transport; `meval`
+# evaluates the user-configured per-PID formulas (see `src/obd2/`).
+obd2-core = { version = "0.2", default-features = false, optional = true }
+meval = { version = "0.2", features = ["serde"], optional = true }
+
 [build-dependencies]
 slint-build = "1"
 
@@ -73,6 +79,10 @@ jamesdsp = ["dep:zbus", "dep:zvariant"]
 # (falls back to USB-only, same as any other hotspot-setup failure); the
 # `hostapd` backend (`hotspot_backend = 1`) is unaffected — it uses no D-Bus.
 networkmanager-hotspot = ["dep:zbus", "dep:zvariant"]
+
+# OBD2 telemetry over a Bluetooth ELM327 adapter (see `src/obd2/`). Off by
+# default; still early plumbing with no UI integration yet.
+obd2 = ["dep:obd2-core", "dep:meval"]
 
 # Required for the v1 certificate used by android-auto (src/cert.rs).
 # `[patch]` only applies from the crate being built, so it must be duplicated

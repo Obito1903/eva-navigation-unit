@@ -102,6 +102,15 @@ pub(crate) const DEFAULT_VIZ_SEG_GAP_PX: f32 = 2.0;
 /// Number of discrete vertical VFD segments per bar column (8..=120).
 pub(crate) const DEFAULT_VIZ_SEG_COUNT: u32 = 50;
 
+// ── OBD2 defaults ────────────────────────────────────────────────────────────
+
+/// Whether the OBD2 worker is enabled by default.
+#[cfg(feature = "obd2")]
+pub(crate) const DEFAULT_OBD2_ENABLED: bool = false;
+/// Default poll interval for configured PIDs, in milliseconds.
+#[cfg(feature = "obd2")]
+pub(crate) const DEFAULT_OBD2_POLL_INTERVAL_MS: u32 = 250;
+
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
 #[derive(Parser, Debug)]
@@ -271,6 +280,21 @@ struct Cli {
     /// Log output format (text | json).
     #[arg(long, env = "EVA_LOG_FORMAT")]
     log_format: Option<String>,
+
+    /// Enable the OBD2 worker (connects to a paired ELM327 over Bluetooth).
+    #[cfg(feature = "obd2")]
+    #[arg(long, env = "EVA_OBD2_ENABLED")]
+    obd2_enabled: Option<bool>,
+
+    /// Bluetooth MAC address of the paired ELM327 adapter (e.g. "AA:BB:CC:DD:EE:FF").
+    #[cfg(feature = "obd2")]
+    #[arg(long, env = "EVA_OBD2_DEVICE_ADDRESS")]
+    obd2_device_address: Option<String>,
+
+    /// Poll interval for the configured OBD2 PIDs, in milliseconds.
+    #[cfg(feature = "obd2")]
+    #[arg(long, env = "EVA_OBD2_POLL_INTERVAL_MS")]
+    obd2_poll_interval_ms: Option<u32>,
 }
 
 /// Shape of the optional TOML configuration file.
@@ -299,6 +323,8 @@ struct FileConfig {
     aa_waiting_text: Option<String>,
     log: Option<LogFileConfig>,
     viz: Option<VizFileConfig>,
+    #[cfg(feature = "obd2")]
+    obd2: Option<Obd2FileConfig>,
 }
 
 /// Shape of the optional `[log]` table in the TOML configuration file.
@@ -328,6 +354,73 @@ struct VizFileConfig {
     bar_gap: Option<f32>,
     seg_gap_px: Option<f32>,
     seg_count: Option<u32>,
+}
+
+/// Shape of the optional `[obd2]` table in the TOML configuration file.
+#[cfg(feature = "obd2")]
+#[derive(Deserialize, Serialize, Default, Debug)]
+struct Obd2FileConfig {
+    enabled: Option<bool>,
+    device_address: Option<String>,
+    poll_interval_ms: Option<u32>,
+    /// User-defined PIDs, e.g.:
+    /// ```toml
+    /// [[obd2.pids]]
+    /// name = "engine_rpm"
+    /// service = 1
+    /// pid = "0C"
+    /// formula = "(A * 256 + B) / 4"
+    /// unit = "rpm"
+    /// ```
+    /// `service` is the OBD-II service/mode (`1` = show current data, `0x22`
+    /// = VAG/enhanced read-by-identifier, ...) and `pid` is a hex string of
+    /// the request data that follows it: a single byte for standard Mode 01
+    /// PIDs (e.g. `"0C"`), or a 2-byte DID for enhanced Mode 22 PIDs (e.g.
+    /// `"100C"`). The formula is evaluated with response data bytes bound
+    /// to `A`, `B`, `C`, `D`, ... matching the SAE/Wikipedia OBD-II PID
+    /// convention, so formulas from
+    /// https://en.wikipedia.org/wiki/OBD-II_PIDs can be pasted in directly.
+    #[serde(default)]
+    pids: Vec<Obd2PidFileConfig>,
+}
+
+/// Shape of a single `[[obd2.pids]]` entry in the TOML configuration file.
+#[cfg(feature = "obd2")]
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct Obd2PidFileConfig {
+    name: String,
+    service: u8,
+    /// Hex string of the request data following the service byte, e.g.
+    /// `"0C"` (Mode 01 PID 0x0C) or `"100C"` (Mode 22 DID 0x100C).
+    pid: String,
+    formula: String,
+    unit: String,
+}
+
+/// Parse a `pid` hex string (e.g. `"0C"` or `"100C"`) into raw bytes.
+/// Returns `None` (and logs a warning identifying `name`) if the string is
+/// empty, has an odd number of hex digits, or contains invalid digits.
+#[cfg(feature = "obd2")]
+fn parse_pid_hex(name: &str, hex: &str) -> Option<Vec<u8>> {
+    let hex = hex.trim().strip_prefix("0x").unwrap_or(hex.trim());
+    if hex.is_empty() || !hex.len().is_multiple_of(2) {
+        log::warn!(
+            "obd2: PID '{name}' has invalid hex '{hex}' \
+             (must be a non-empty, even-length hex string); skipping"
+        );
+        return None;
+    }
+    let bytes: Result<Vec<u8>, _> = (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16))
+        .collect();
+    match bytes {
+        Ok(b) => Some(b),
+        Err(e) => {
+            log::warn!("obd2: PID '{name}' has invalid hex '{hex}' ({e}); skipping");
+            None
+        }
+    }
 }
 
 /// Fully resolved logging / debug-pipeline configuration.
@@ -427,6 +520,44 @@ impl VizConfig {
     }
 }
 
+/// Fully resolved OBD2 configuration.
+#[cfg(feature = "obd2")]
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Obd2Config {
+    /// Whether the OBD2 worker is enabled.
+    pub(crate) enabled: bool,
+    /// Bluetooth MAC address of the paired ELM327 adapter. Pairing itself is
+    /// a manual/OS-level step for now; there is no in-app discovery yet.
+    pub(crate) device_address: Option<String>,
+    /// Poll interval for the configured PIDs, in milliseconds.
+    pub(crate) poll_interval_ms: u32,
+    /// User-defined PIDs to poll (see `[[obd2.pids]]` in the config file).
+    pub(crate) pids: Vec<Obd2PidConfig>,
+}
+
+/// A single user-defined OBD-II PID: which service/data to request over the
+/// raw-request escape hatch, and how to turn the raw response bytes into a
+/// physical value.
+#[cfg(feature = "obd2")]
+#[derive(Debug, Clone)]
+pub(crate) struct Obd2PidConfig {
+    /// Human-readable identifier (e.g. "engine_rpm").
+    pub(crate) name: String,
+    /// OBD-II service/mode (e.g. 1 for "show current data", 0x22 for VAG's
+    /// enhanced read-by-identifier).
+    pub(crate) service: u8,
+    /// Request data following the service byte: a single-byte PID for
+    /// standard Mode 01 PIDs (e.g. `[0x0C]` for engine RPM), or a 2-byte DID
+    /// for enhanced Mode 22 PIDs (e.g. `[0x10, 0x0C]`).
+    pub(crate) data: Vec<u8>,
+    /// Expression computing the physical value from response bytes bound to
+    /// `A`, `B`, `C`, `D`, ... (the SAE/Wikipedia OBD-II PID convention).
+    /// Compiled to a [`meval::Expr`] by the OBD2 worker at startup.
+    pub(crate) formula: String,
+    /// Arbitrary physical unit label (e.g. "rpm", "\u00b0C", "km/h").
+    pub(crate) unit: String,
+}
+
 /// Fully resolved runtime configuration.
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
@@ -466,6 +597,9 @@ pub(crate) struct Config {
     pub(crate) log: LogConfig,
     /// Spectrum visualizer tuning parameters.
     pub(crate) viz: VizConfig,
+    /// OBD2 telemetry configuration.
+    #[cfg(feature = "obd2")]
+    pub(crate) obd2: Obd2Config,
     /// Path the configuration is loaded from and saved back to.
     pub(crate) path: PathBuf,
 }
@@ -574,6 +708,36 @@ impl Config {
             seg_count: cli.viz_seg_count.or(file_viz.seg_count).unwrap_or(DEFAULT_VIZ_SEG_COUNT),
         });
 
+        #[cfg(feature = "obd2")]
+        let obd2 = {
+            let file_obd2 = file.obd2.unwrap_or_default();
+            Obd2Config {
+                enabled: cli
+                    .obd2_enabled
+                    .or(file_obd2.enabled)
+                    .unwrap_or(DEFAULT_OBD2_ENABLED),
+                device_address: cli.obd2_device_address.or(file_obd2.device_address),
+                poll_interval_ms: cli
+                    .obd2_poll_interval_ms
+                    .or(file_obd2.poll_interval_ms)
+                    .unwrap_or(DEFAULT_OBD2_POLL_INTERVAL_MS),
+                pids: file_obd2
+                    .pids
+                    .into_iter()
+                    .filter_map(|p| {
+                        let data = parse_pid_hex(&p.name, &p.pid)?;
+                        Some(Obd2PidConfig {
+                            name: p.name,
+                            service: p.service,
+                            data,
+                            formula: p.formula,
+                            unit: p.unit,
+                        })
+                    })
+                    .collect(),
+            }
+        };
+
         Self::sanitised(Self {
             min_dpi,
             max_dpi,
@@ -598,6 +762,8 @@ impl Config {
             aa_waiting_text,
             log,
             viz,
+            #[cfg(feature = "obd2")]
+            obd2,
             path,
         })
     }
@@ -631,6 +797,8 @@ impl Config {
             aa_waiting_text,
             log,
             viz,
+            #[cfg(feature = "obd2")]
+            obd2,
             path,
         } = raw;
         let mut min_dpi = min_dpi.max(1);
@@ -673,6 +841,8 @@ impl Config {
             aa_waiting_text,
             log,
             viz,
+            #[cfg(feature = "obd2")]
+            obd2,
             path,
         }
     }
@@ -723,6 +893,27 @@ impl Config {
                 bar_gap: Some(self.viz.bar_gap),
                 seg_gap_px: Some(self.viz.seg_gap_px),
                 seg_count: Some(self.viz.seg_count as u32),
+            }),
+            #[cfg(feature = "obd2")]
+            obd2: Some(Obd2FileConfig {
+                enabled: Some(self.obd2.enabled),
+                device_address: self.obd2.device_address.clone(),
+                poll_interval_ms: Some(self.obd2.poll_interval_ms),
+                pids: self
+                    .obd2
+                    .pids
+                    .iter()
+                    .map(|p| {
+                        let hex = p.data.iter().map(|b| format!("{b:02X}")).collect();
+                        Obd2PidFileConfig {
+                            name: p.name.clone(),
+                            service: p.service,
+                            pid: hex,
+                            formula: p.formula.clone(),
+                            unit: p.unit.clone(),
+                        }
+                    })
+                    .collect(),
             }),
         };
         match toml::to_string_pretty(&file) {

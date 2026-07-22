@@ -31,6 +31,8 @@ mod logging;
 mod messages;
 #[cfg(feature = "networkmanager-hotspot")]
 mod nmrs_extensions;
+#[cfg(feature = "obd2")]
+mod obd2;
 mod protocol;
 mod spectrum;
 mod ui;
@@ -107,6 +109,28 @@ fn main() -> Result<(), slint::PlatformError> {
     let (_spectrum_capture, consumer) = spectrum::start_capture(&cfg.viz);
     let viz_renderer_id = Arc::new(AtomicI32::new(0));
     let viz_theme = Arc::new(AtomicI32::new(0));
+
+    // OBD2 plumbing only for now — no UI consumer yet, so a temporary
+    // background logger drains the readings until the UI wires this up.
+    // `_obd2_container` must stay alive for the process lifetime (dropping
+    // it tears down the worker), hence the leading underscore rather than
+    // discarding it outright.
+    #[cfg(feature = "obd2")]
+    let _obd2_container = {
+        let (container, mut recv) = obd2::Obd2Container::new(cfg.obd2.clone());
+        std::thread::spawn(move || {
+            while let Some(update) = recv.blocking_recv() {
+                match update {
+                    messages::Obd2Update::Connected => log::info!("obd2: connected"),
+                    messages::Obd2Update::Disconnected => log::info!("obd2: disconnected"),
+                    messages::Obd2Update::Reading { name, value, unit } => {
+                        log::debug!("obd2: {name} = {value} {unit}");
+                    }
+                }
+            }
+        });
+        container
+    };
 
     ui::wire(&window, setup, cfg, viz_renderer_id.clone(), viz_theme.clone());
     gfx::install(&window, consumer, viz_renderer_id, viz_theme, viz_cfg);

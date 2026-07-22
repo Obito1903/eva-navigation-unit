@@ -311,37 +311,37 @@ pub(crate) fn wire(
                 if bypass_on { "enabled" } else { "disabled" }
             );
             // Bypass ON means the DSP chain is disabled, i.e. `master_enable = false`.
-            let _ = send.try_send(DspCommand::SetMasterEnable(!bypass_on));
+            let _ = send.try_send(DspCommand::MasterEnable(!bypass_on));
         });
     }
     {
         let send = dsp_container.send.clone();
         window.on_dsp_graphiceq_changed(move |on| {
-            let _ = send.try_send(DspCommand::SetEffect(DspEffect::GraphicEq, on));
+            let _ = send.try_send(DspCommand::Effect(DspEffect::GraphicEq, on));
         });
     }
     {
         let send = dsp_container.send.clone();
         window.on_dsp_convolver_changed(move |on| {
-            let _ = send.try_send(DspCommand::SetEffect(DspEffect::Convolver, on));
+            let _ = send.try_send(DspCommand::Effect(DspEffect::Convolver, on));
         });
     }
     {
         let send = dsp_container.send.clone();
         window.on_dsp_equalizer_changed(move |on| {
-            let _ = send.try_send(DspCommand::SetEffect(DspEffect::Equalizer, on));
+            let _ = send.try_send(DspCommand::Effect(DspEffect::Equalizer, on));
         });
     }
     {
         let send = dsp_container.send.clone();
         window.on_dsp_bassboost_changed(move |on| {
-            let _ = send.try_send(DspCommand::SetEffect(DspEffect::BassBoost, on));
+            let _ = send.try_send(DspCommand::Effect(DspEffect::BassBoost, on));
         });
     }
     {
         let send = dsp_container.send.clone();
         window.on_dsp_eq_band_changed(move |index, gain| {
-            let _ = send.try_send(DspCommand::SetEqBand {
+            let _ = send.try_send(DspCommand::EqBand {
                 index: index as usize,
                 gain,
                 commit: false,
@@ -351,7 +351,7 @@ pub(crate) fn wire(
     {
         let send = dsp_container.send.clone();
         window.on_dsp_eq_band_committed(move |index, gain| {
-            let _ = send.try_send(DspCommand::SetEqBand {
+            let _ = send.try_send(DspCommand::EqBand {
                 index: index as usize,
                 gain,
                 commit: true,

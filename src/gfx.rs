@@ -17,7 +17,7 @@
 //! nothing/transparent, this underlay shows through.
 
 use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::AtomicI32;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -194,9 +194,21 @@ struct Underlay {
     icons_ready: bool,
 }
 
+/// Parameters for [`Underlay::render`], bundled to keep the call site
+/// readable and avoid a long positional argument list.
+struct RenderParams {
+    width: u32,
+    height: u32,
+    time: f32,
+    color: (f32, f32, f32),
+    offset_x: f32,
+    model: i32,
+    enabled: bool,
+}
+
 /// Compile + link a vertex/fragment shader pair into a program, panicking with
 /// the GL info log on any compile/link failure.
-unsafe fn build_program(gl: &glow::Context, vs: &str, fs: &str) -> glow::Program {
+unsafe fn build_program(gl: &glow::Context, vs: &str, fs: &str) -> glow::Program { unsafe {
     let program = gl.create_program().expect("create_program");
     let shader_sources = [(glow::VERTEX_SHADER, vs), (glow::FRAGMENT_SHADER, fs)];
     let mut shaders = Vec::with_capacity(shader_sources.len());
@@ -219,7 +231,7 @@ unsafe fn build_program(gl: &glow::Context, vs: &str, fs: &str) -> glow::Program
         gl.delete_shader(shader);
     }
     program
-}
+}}
 
 impl Underlay {
     fn new(gl: glow::Context) -> Self {
@@ -321,7 +333,7 @@ impl Underlay {
     }
 
     /// (Re)allocate the offscreen color texture to match the framebuffer size.
-    unsafe fn ensure_fbo(&mut self, width: u32, height: u32) {
+    unsafe fn ensure_fbo(&mut self, width: u32, height: u32) { unsafe {
         if self.fbo_w == width && self.fbo_h == height {
             return;
         }
@@ -353,23 +365,15 @@ impl Underlay {
         gl.bind_texture(glow::TEXTURE_2D, None);
         self.fbo_w = width;
         self.fbo_h = height;
-    }
+    }}
 
     /// Clear the framebuffer to black and, when `enabled`, render the rotating
     /// wireframe model into an offscreen target and composite it back through
     /// the frosted-glass pass. `offset_x` shifts the model horizontally in NDC
     /// so it can center on the content area instead of the whole window.
     /// `model` selects which wireframe to draw (0 = sphere, 1 = cube, 2 = car).
-    fn render(
-        &mut self,
-        width: u32,
-        height: u32,
-        time: f32,
-        color: (f32, f32, f32),
-        offset_x: f32,
-        model: i32,
-        enabled: bool,
-    ) {
+    fn render(&mut self, params: RenderParams) {
+        let RenderParams { width, height, time, color, offset_x, model, enabled } = params;
         if !enabled {
             let gl = &self.gl;
             unsafe {
@@ -450,7 +454,7 @@ impl Underlay {
     }
 
     /// Allocate both icon color textures once, on first use.
-    unsafe fn ensure_icon_fbo(&mut self) {
+    unsafe fn ensure_icon_fbo(&mut self) { unsafe {
         if self.icons_ready {
             return;
         }
@@ -475,7 +479,7 @@ impl Underlay {
         }
         gl.bind_texture(glow::TEXTURE_2D, None);
         self.icons_ready = true;
-    }
+    }}
 
     /// Render a wireframe icon model (spinning about its vertical axis with
     /// `time`) into `tex` over a transparent background, and return it wrapped
@@ -996,8 +1000,7 @@ fn build_gear_icon_wireframe() -> Vec<f32> {
         }
     }
     // Spokes joining front and back outline at each vertex (extrusion edges).
-    for i in 0..outline.len() {
-        let a = outline[i];
+    for a in &outline {
         edge(&mut v, [a[0], a[1], -hz], [a[0], a[1], hz]);
     }
 
@@ -1102,9 +1105,8 @@ pub(crate) fn install(
                     },
                     _ => {
                         log::error!("gfx: unexpected graphics API; underlay disabled");
-                        return;
                     }
-                };
+                }
             }
             RenderingState::BeforeRendering => {
                 if let (Some(underlay), Some(win)) = (underlay.as_mut(), weak.upgrade()) {
@@ -1116,8 +1118,8 @@ pub(crate) fn install(
                         if let Some(gl) = viz_gl.as_ref() {
                             // Lazy-initialise the VisualizerSystem on first use,
                             // consuming the AudioConsumer from the capture thread.
-                            if viz_system.is_none() {
-                                if let Some(consumer) = viz_consumer.take() {
+                            if viz_system.is_none()
+                                && let Some(consumer) = viz_consumer.take() {
                                     viz_system = Some(VisualizerSystem::new(
                                         gl,
                                         size.width,
@@ -1128,7 +1130,6 @@ pub(crate) fn install(
                                         &viz_cfg,
                                     ));
                                 }
-                            }
                             if let Some(viz) = viz_system.as_mut() {
                                 let t0 = Instant::now();
                                 viz.render_frame(gl, size.width, size.height);
@@ -1167,7 +1168,15 @@ pub(crate) fn install(
                     } else {
                         SIDEBAR_W * scale / size.width as f32
                     };
-                    underlay.render(size.width, size.height, time, color, offset_x, model, enabled);
+                    underlay.render(RenderParams {
+                        width: size.width,
+                        height: size.height,
+                        time,
+                        color,
+                        offset_x,
+                        model,
+                        enabled,
+                    });
 
                     // Spinning nav icons. Each icon owns a GL texture handed to
                     // Slint as a zero-copy borrowed texture (no glReadPixels, so

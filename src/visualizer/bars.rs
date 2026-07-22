@@ -243,7 +243,7 @@ struct GlState {
 }
 
 impl GlState {
-    unsafe fn new(gl: &glow::Context) -> Self {
+    unsafe fn new(gl: &glow::Context) -> Self { unsafe {
         // ── VFD segment program ───────────────────────────────────────────
         let seg_program = build_program(gl, QUAD_VERT, VFD_FRAG);
         let seg_pos = gl.get_attrib_location(seg_program, "pos").unwrap();
@@ -332,9 +332,9 @@ impl GlState {
             fbo_w: 0,
             fbo_h: 0,
         }
-    }
+    }}
 
-    unsafe fn ensure_fbo(&mut self, gl: &glow::Context, w: u32, h: u32) {
+    unsafe fn ensure_fbo(&mut self, gl: &glow::Context, w: u32, h: u32) { unsafe {
         if self.fbo_w == w && self.fbo_h == h { return; }
         gl.bind_texture(glow::TEXTURE_2D, Some(self.fbo_tex));
         gl.tex_image_2d(
@@ -350,9 +350,9 @@ impl GlState {
         gl.bind_texture(glow::TEXTURE_2D, None);
         self.fbo_w = w;
         self.fbo_h = h;
-    }
+    }}
 
-    unsafe fn teardown(&mut self, gl: &glow::Context) {
+    unsafe fn teardown(&mut self, gl: &glow::Context) { unsafe {
         gl.delete_program(self.seg_program);
         gl.delete_program(self.bloom_program);
         gl.delete_program(self.copy_program);
@@ -360,7 +360,7 @@ impl GlState {
         gl.delete_texture(self.bar_data_tex);
         gl.delete_framebuffer(self.fbo);
         gl.delete_texture(self.fbo_tex);
-    }
+    }}
 }
 
 // ── BarsRenderer ─────────────────────────────────────────────────────────────
@@ -384,12 +384,6 @@ impl SpectrumRenderer for BarsRenderer {
         self.state = Some(unsafe { GlState::new(gl) });
     }
 
-    fn resize(&mut self, gl: &glow::Context, w: u32, h: u32) {
-        if let Some(s) = &mut self.state {
-            unsafe { s.ensure_fbo(gl, w, h) };
-        }
-    }
-
     fn teardown(&mut self, gl: &glow::Context) {
         if let Some(mut s) = self.state.take() {
             unsafe { s.teardown(gl) };
@@ -398,24 +392,39 @@ impl SpectrumRenderer for BarsRenderer {
 
     fn render(&mut self, gl: &glow::Context, w: u32, h: u32, bands: &[f32], peaks: &[f32]) {
         let Some(s) = &mut self.state else { return };
-        unsafe { render_bars(gl, s, w, h, bands, peaks, self.theme_id, self.bar_gap, self.seg_gap_px, self.seg_count) };
+        unsafe {
+            render_bars(gl, s, BarsRenderParams {
+                w, h, bands, peaks,
+                theme_id: self.theme_id,
+                bar_gap: self.bar_gap,
+                seg_gap_px: self.seg_gap_px,
+                seg_count: self.seg_count,
+            })
+        };
     }
 }
 
 // ── Core render logic ─────────────────────────────────────────────────────────
 
-unsafe fn render_bars(
-    gl: &glow::Context,
-    s: &mut GlState,
+/// Parameters for [`render_bars`], bundled to keep the call site readable
+/// and avoid a long positional argument list.
+struct BarsRenderParams<'a> {
     w: u32,
     h: u32,
-    bands: &[f32],
-    peaks: &[f32],
+    bands: &'a [f32],
+    peaks: &'a [f32],
     theme_id: i32,
     bar_gap: f32,
     seg_gap_px: f32,
     seg_count: usize,
-) {
+}
+
+unsafe fn render_bars(
+    gl: &glow::Context,
+    s: &mut GlState,
+    params: BarsRenderParams,
+) { unsafe {
+    let BarsRenderParams { w, h, bands, peaks, theme_id, bar_gap, seg_gap_px, seg_count } = params;
     let n = bands.len().min(peaks.len()).min(BANDS);
     s.ensure_fbo(gl, w, h);
     s.n_bands = n;
@@ -520,4 +529,4 @@ unsafe fn render_bars(
     gl.bind_texture(glow::TEXTURE_2D, None);
     gl.active_texture(glow::TEXTURE0);
     gl.use_program(None);
-}
+}}

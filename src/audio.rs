@@ -82,14 +82,18 @@ pub(crate) fn build_output_stream_for(
     None
 }
 
-/// Build the default input device handle plus the media/system/speech output
-/// streams used by android-auto.
-pub(crate) fn build_audio_streams() -> (
+/// Return type of [`build_audio_streams`]: default input device plus the
+/// media/system/speech output streams used by android-auto.
+pub(crate) type AudioStreams = (
     Option<cpal::Device>,
     Option<(AudioProducer, cpal::Stream)>,
     Option<(AudioProducer, cpal::Stream)>,
     Option<(AudioProducer, cpal::Stream)>,
-) {
+);
+
+/// Build the default input device handle plus the media/system/speech output
+/// streams used by android-auto.
+pub(crate) fn build_audio_streams() -> AudioStreams {
     let host = cpal::default_host();
     let ai = host.default_input_device();
     let ao = host.default_output_device();

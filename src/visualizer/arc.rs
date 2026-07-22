@@ -98,7 +98,7 @@ struct GlState {
 }
 
 impl GlState {
-    unsafe fn new(gl: &glow::Context) -> Self {
+    unsafe fn new(gl: &glow::Context) -> Self { unsafe {
         let bar_program = build_program(gl, BAR_VERT, BAR_FRAG);
         let bar_pos = gl.get_attrib_location(bar_program, "a_pos").unwrap();
         let bar_color = gl.get_attrib_location(bar_program, "a_color").unwrap();
@@ -160,9 +160,9 @@ impl GlState {
             fbo_w: 0,
             fbo_h: 0,
         }
-    }
+    }}
 
-    unsafe fn ensure_fbo(&mut self, gl: &glow::Context, w: u32, h: u32) {
+    unsafe fn ensure_fbo(&mut self, gl: &glow::Context, w: u32, h: u32) { unsafe {
         if self.fbo_w == w && self.fbo_h == h {
             return;
         }
@@ -185,9 +185,9 @@ impl GlState {
         gl.bind_texture(glow::TEXTURE_2D, None);
         self.fbo_w = w;
         self.fbo_h = h;
-    }
+    }}
 
-    unsafe fn teardown(&mut self, gl: &glow::Context) {
+    unsafe fn teardown(&mut self, gl: &glow::Context) { unsafe {
         gl.delete_program(self.bar_program);
         gl.delete_program(self.bloom_program);
         gl.delete_program(self.copy_program);
@@ -196,7 +196,7 @@ impl GlState {
         gl.delete_buffer(self.quad_vbo);
         gl.delete_framebuffer(self.fbo);
         gl.delete_texture(self.fbo_tex);
-    }
+    }}
 }
 
 // ── ArcRenderer ───────────────────────────────────────────────────────────────
@@ -215,12 +215,6 @@ impl ArcRenderer {
 impl SpectrumRenderer for ArcRenderer {
     fn setup(&mut self, gl: &glow::Context, _w: u32, _h: u32) {
         self.state = Some(unsafe { GlState::new(gl) });
-    }
-
-    fn resize(&mut self, gl: &glow::Context, w: u32, h: u32) {
-        if let Some(s) = &mut self.state {
-            unsafe { s.ensure_fbo(gl, w, h) };
-        }
     }
 
     fn teardown(&mut self, gl: &glow::Context) {
@@ -245,7 +239,7 @@ unsafe fn render_arc(
     bands: &[f32],
     peaks: &[f32],
     theme_id: i32,
-) {
+) { unsafe {
     s.ensure_fbo(gl, w, h);
 
     let (base_rgb, tip_rgb, peak_rgb, grid_rgb) = theme_palette(theme_id);
@@ -284,7 +278,10 @@ unsafe fn render_arc(
     gl.disable_vertex_attrib_array(s.quad_pos);
 
     // Fan bar geometry
-    let verts = build_arc_geometry(w, h, bands, peaks, theme_id, &base_rgb, &tip_rgb, &peak_rgb);
+    let verts = build_arc_geometry(ArcGeometryParams {
+        w, h, bands, peaks, theme_id,
+        base_rgb: &base_rgb, tip_rgb: &tip_rgb, peak_rgb: &peak_rgb,
+    });
     gl.bind_buffer(glow::ARRAY_BUFFER, Some(s.bar_vbo));
     gl.buffer_sub_data_u8_slice(glow::ARRAY_BUFFER, 0, as_u8_slice(&verts));
 
@@ -331,25 +328,30 @@ unsafe fn render_arc(
     gl.bind_buffer(glow::ARRAY_BUFFER, None);
     gl.bind_texture(glow::TEXTURE_2D, None);
     gl.use_program(None);
-}
+}}
 
 // ── Fan geometry builder ──────────────────────────────────────────────────────
+
+/// Parameters for [`build_arc_geometry`], bundled to keep the call site
+/// readable and avoid a long positional argument list.
+struct ArcGeometryParams<'a> {
+    w: u32,
+    h: u32,
+    bands: &'a [f32],
+    peaks: &'a [f32],
+    theme_id: i32,
+    base_rgb: &'a [f32; 3],
+    tip_rgb: &'a [f32; 3],
+    peak_rgb: &'a [f32; 3],
+}
 
 /// Build the fan-bar vertex data.
 ///
 /// Each bar is a rotated quad: its long axis points from the focal origin
 /// outward at the bar's angle, and its short axis (width) is perpendicular.
 /// The focal origin is below the display area by `FOCAL_DEPTH × h`.
-fn build_arc_geometry(
-    w: u32,
-    h: u32,
-    bands: &[f32],
-    peaks: &[f32],
-    theme_id: i32,
-    base_rgb: &[f32; 3],
-    tip_rgb: &[f32; 3],
-    peak_rgb: &[f32; 3],
-) -> Vec<f32> {
+fn build_arc_geometry(params: ArcGeometryParams) -> Vec<f32> {
+    let ArcGeometryParams { w, h, bands, peaks, theme_id, base_rgb, tip_rgb, peak_rgb } = params;
     let wf = w as f32;
     let hf = h as f32;
 
@@ -404,13 +406,12 @@ fn build_arc_geometry(
         let tip_x = cx + dir[0] * bar_len;
         let tip_y = cy + dir[1] * bar_len;
 
-        push_rotated_quad(
-            &mut verts,
-            base_x, base_y,
-            tip_x, tip_y,
-            bar_half_w, &perp,
-            &bc, &tc, wf, hf,
-        );
+        push_rotated_quad(&mut verts, QuadParams {
+            x0: base_x, y0: base_y,
+            x1: tip_x, y1: tip_y,
+            hw: bar_half_w, perp: &perp,
+            base_rgb: &bc, tip_rgb: &tc, w: wf, h: hf,
+        });
 
         // Peak dot
         if peak_val > 0.02 {
@@ -418,33 +419,36 @@ fn build_arc_geometry(
             let pk_mid_y = cy + dir[1] * peak_len;
             let pk_base_x = cx + dir[0] * (peak_len - peak_half_h);
             let pk_base_y = cy + dir[1] * (peak_len - peak_half_h);
-            push_rotated_quad(
-                &mut verts,
-                pk_base_x, pk_base_y,
-                pk_mid_x + dir[0] * peak_half_h,
-                pk_mid_y + dir[1] * peak_half_h,
-                bar_half_w, &perp,
-                &p_rgb, &p_rgb, wf, hf,
-            );
+            push_rotated_quad(&mut verts, QuadParams {
+                x0: pk_base_x, y0: pk_base_y,
+                x1: pk_mid_x + dir[0] * peak_half_h,
+                y1: pk_mid_y + dir[1] * peak_half_h,
+                hw: bar_half_w, perp: &perp,
+                base_rgb: &p_rgb, tip_rgb: &p_rgb, w: wf, h: hf,
+            });
         }
     }
 
     verts
 }
 
-/// Push a bar quad whose long axis goes from `(x0,y0)` to `(x1,y1)` and
-/// whose short axis half-width is `hw` along `perp`.
-fn push_rotated_quad(
-    verts: &mut Vec<f32>,
+/// Parameters for [`push_rotated_quad`], bundled to keep call sites readable
+/// and avoid a long positional argument list.
+struct QuadParams<'a> {
     x0: f32, y0: f32,
     x1: f32, y1: f32,
     hw: f32,
-    perp: &[f32; 2],
-    base_rgb: &[f32; 3],
-    tip_rgb: &[f32; 3],
+    perp: &'a [f32; 2],
+    base_rgb: &'a [f32; 3],
+    tip_rgb: &'a [f32; 3],
     w: f32,
     h: f32,
-) {
+}
+
+/// Push a bar quad whose long axis goes from `(x0,y0)` to `(x1,y1)` and
+/// whose short axis half-width is `hw` along `perp`.
+fn push_rotated_quad(verts: &mut Vec<f32>, params: QuadParams) {
+    let QuadParams { x0, y0, x1, y1, hw, perp, base_rgb, tip_rgb, w, h } = params;
     let bl = [x0 - perp[0] * hw, y0 - perp[1] * hw];
     let br = [x0 + perp[0] * hw, y0 + perp[1] * hw];
     let tl = [x1 - perp[0] * hw, y1 - perp[1] * hw];

@@ -135,7 +135,6 @@ pub trait SpectrumRenderer {
     fn setup(&mut self, gl: &glow::Context, w: u32, h: u32);
     fn render(&mut self, gl: &glow::Context, w: u32, h: u32,
               bands: &[f32], peaks: &[f32]);
-    fn resize(&mut self, gl: &glow::Context, w: u32, h: u32);
     fn teardown(&mut self, gl: &glow::Context);
 }
 

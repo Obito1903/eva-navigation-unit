@@ -170,7 +170,7 @@ impl SpectrumProcessor {
             self.window.rotate_right(shift);
             // Fill front with the newest `shift` mono-downmixed frames,
             // reversed so index 0 = newest (CAVA's convention).
-            let start = if n_frames > self.fft_size { n_frames - self.fft_size } else { 0 };
+            let start = n_frames.saturating_sub(self.fft_size);
             for i in 0..shift {
                 let src = start + (shift - 1 - i);
                 let l = tmp.get(src * 2    ).copied().unwrap_or(0.0);
@@ -192,10 +192,10 @@ impl SpectrumProcessor {
 
         // ── Band extraction: Σ|FFT| per band × EQ × sens ───────────
         let mut raw = vec![0.0f32; self.n_bands];
-        for n in 0..self.n_bands {
+        for (n, r) in raw.iter_mut().enumerate() {
             let sum: f32 = self.fft_buf[self.band_lo[n]..=self.band_hi[n]]
                 .iter().map(|c| c.norm()).sum();
-            raw[n] = (sum * self.eq[n] * self.sens).max(0.0);
+            *r = (sum * self.eq[n] * self.sens).max(0.0);
         }
 
         // ── Pre-smooth raw values for the gravity trigger ──────────────
@@ -206,11 +206,11 @@ impl SpectrumProcessor {
         // slower release to damp transient spikes during the fall.
         let alpha_rise = 1.0 - (-dt / 0.008_f32).exp(); // τ = 8 ms
         let alpha_fall = 1.0 - (-dt / 0.035_f32).exp(); // τ = 35 ms
-        for n in 0..self.n_bands {
-            let target = raw[n];
-            let alpha = if target > self.prev_raw[n] { alpha_rise } else { alpha_fall };
-            self.prev_raw[n] += (target - self.prev_raw[n]) * alpha;
-            raw[n] = self.prev_raw[n];
+        for (r, prev) in raw.iter_mut().zip(self.prev_raw.iter_mut()) {
+            let target = *r;
+            let alpha = if target > *prev { alpha_rise } else { alpha_fall };
+            *prev += (target - *prev) * alpha;
+            *r = *prev;
         }
 
         // ── CAVA smoothing ────────────────────────────────────────────────
@@ -230,22 +230,22 @@ impl SpectrumProcessor {
 
         let mut overshoot = false;
 
-        for n in 0..self.n_bands {
+        for (n, &r) in raw.iter().enumerate() {
             // Gravity: parabolic fall when bar is descending.
-            let mut out = if raw[n] < self.prev_out[n] {
+            let mut out = if r < self.prev_out[n] {
                 let v = self.cava_peak[n]
                     * (1.0 - self.cava_fall[n] * self.cava_fall[n] * gravity_mod);
                 self.cava_fall[n] += 0.028;
                 v.max(0.0)
             } else {
-                self.cava_peak[n] = raw[n];
+                self.cava_peak[n] = r;
                 self.cava_fall[n] = 0.0;
-                raw[n]
+                r
             };
             self.prev_out[n] = out;
 
             // Integral (leaky integrator): "heavy" bar feel.
-            out = self.cava_mem[n] * integral_factor + out;
+            out += self.cava_mem[n] * integral_factor;
             let final_out   = out.clamp(0.0, 1.0);
             self.cava_mem[n] = final_out; // clamp prevents runaway
 

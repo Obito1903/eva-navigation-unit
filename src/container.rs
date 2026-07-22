@@ -207,12 +207,12 @@ impl AndroidAutoContainer {
                     video.screen_h.load(Ordering::Relaxed),
                     video.dpi.load(Ordering::Relaxed).clamp(1, u16::MAX as i32) as u16,
                 );
-                let aa = AndroidAuto::new(
-                    to_async.1,
-                    from_async.0,
+                let aa = AndroidAuto::new(crate::protocol::AndroidAutoInit {
+                    recv: to_async.1,
+                    send: from_async.0,
                     bluetooth,
-                    bluetooth_address,
-                    android_auto::NetworkInformation {
+                    blue_address: bluetooth_address,
+                    network: android_auto::NetworkInformation {
                         ssid: hotspot_ssid,
                         psk: hotspot_psk,
                         mac_addr: wifi_mac,
@@ -221,11 +221,11 @@ impl AndroidAutoContainer {
                         security_mode: android_auto::Bluetooth::SecurityMode::WPA2_PERSONAL,
                         ap_type: android_auto::Bluetooth::AccessPointType::STATIC,
                     },
-                    aauto.1,
-                    aauto.0,
+                    android_recv: aauto.1,
+                    android_send: aauto.0,
                     video_config,
-                    usb,
-                );
+                    usb_enabled: usb,
+                });
 
                 let config = android_auto::AndroidAutoConfiguration {
                     unit: HeadUnitInfo {

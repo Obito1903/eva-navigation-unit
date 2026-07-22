@@ -93,13 +93,13 @@ pub(crate) struct Snapshot {
 pub(crate) enum Command {
     /// Enable/disable the whole DSP chain (`master_enable`). `enabled` is the
     /// non-inverted value — callers translate a "bypass" toggle themselves.
-    SetMasterEnable(bool),
+    MasterEnable(bool),
     /// Enable/disable one of the phase-2 effect toggles.
-    SetEffect(Effect, bool),
+    Effect(Effect, bool),
     /// Set one Equalizer band's gain (dB). `commit = false` applies it live
     /// without persisting (used while dragging); `commit = true` persists it
     /// (used on release).
-    SetEqBand { index: usize, gain: f32, commit: bool },
+    EqBand { index: usize, gain: f32, commit: bool },
     /// Pause/resume polling — the UI pauses this while the DSP/EQ tab isn't
     /// visible to avoid needless D-Bus traffic.
     ///
@@ -107,7 +107,7 @@ pub(crate) enum Command {
     /// simplification (no per-tab visibility plumbing from `settings.slint`
     /// yet). Kept for when that's added.
     #[allow(dead_code)]
-    SetPollingActive(bool),
+    PollingActive(bool),
 }
 
 /// Events sent from the worker to the UI thread.
@@ -216,7 +216,7 @@ fn parse_tone_eq(raw: &str) -> Option<Vec<EqBandValue>> {
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .collect();
-    if fields.is_empty() || fields.len() % 2 != 0 {
+    if fields.is_empty() || !fields.len().is_multiple_of(2) {
         return None;
     }
     let n = fields.len() / 2;
@@ -277,35 +277,32 @@ impl JamesDspContainer {
                             let Some(cmd) = cmd else { break; };
                             let mut push_snapshot = true;
                             match cmd {
-                                Command::SetPollingActive(active) => {
+                                Command::PollingActive(active) => {
                                     polling_active = active;
                                     push_snapshot = false;
                                 }
-                                Command::SetMasterEnable(on) => {
-                                    if let Some(d) = &dsp {
-                                        if let Err(e) = d.set_bool("master_enable", on, true).await {
+                                Command::MasterEnable(on) => {
+                                    if let Some(d) = &dsp
+                                        && let Err(e) = d.set_bool("master_enable", on, true).await {
                                             log::warn!("JamesDSP: failed to set master_enable: {e}");
                                         }
-                                    }
                                 }
-                                Command::SetEffect(effect, on) => {
-                                    if let Some(d) = &dsp {
-                                        if let Err(e) = d.set_bool(effect.key(), on, true).await {
+                                Command::Effect(effect, on) => {
+                                    if let Some(d) = &dsp
+                                        && let Err(e) = d.set_bool(effect.key(), on, true).await {
                                             log::warn!(
                                                 "JamesDSP: failed to set {}: {e}",
                                                 effect.key()
                                             );
                                         }
-                                    }
                                 }
-                                Command::SetEqBand { index, gain, commit } => {
-                                    if let Some(d) = &dsp {
-                                        if let Err(e) = d.set_eq_band(index, gain, commit).await {
+                                Command::EqBand { index, gain, commit } => {
+                                    if let Some(d) = &dsp
+                                        && let Err(e) = d.set_eq_band(index, gain, commit).await {
                                             log::warn!(
                                                 "JamesDSP: failed to set EQ band {index}: {e}"
                                             );
                                         }
-                                    }
                                     // Skip the round-trip snapshot while the
                                     // user is still dragging a slider — it
                                     // would just fight the UI's own live

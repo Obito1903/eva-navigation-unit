@@ -375,14 +375,32 @@ pub(crate) struct VizConfig {
     pub(crate) seg_count: usize,
 }
 
+/// Raw (unclamped) parameters for [`VizConfig::new`], bundled to keep the
+/// call site readable and avoid a long positional argument list.
+struct VizConfigRaw {
+    bands: u32,
+    fft_size: u32,
+    hop: u32,
+    freq_min: f32,
+    freq_max: f32,
+    input_attack_ms: f32,
+    input_release_ms: f32,
+    gravity: f32,
+    noise_reduction: f32,
+    bar_gap: f32,
+    seg_gap_px: f32,
+    seg_count: u32,
+}
+
 impl VizConfig {
-    fn new(
-        bands: u32, fft_size: u32, hop: u32,
-        freq_min: f32, freq_max: f32,
-        input_attack_ms: f32, input_release_ms: f32,
-        gravity: f32, noise_reduction: f32,
-        bar_gap: f32, seg_gap_px: f32, seg_count: u32,
-    ) -> Self {
+    fn new(raw: VizConfigRaw) -> Self {
+        let VizConfigRaw {
+            bands, fft_size, hop,
+            freq_min, freq_max,
+            input_attack_ms, input_release_ms,
+            gravity, noise_reduction,
+            bar_gap, seg_gap_px, seg_count,
+        } = raw;
         // Round fft_size down to the nearest power of two within [512, 8192].
         let fft_size_raw = fft_size.clamp(512, 8192) as usize;
         let mut fft_size = 512usize;
@@ -541,22 +559,22 @@ impl Config {
         };
 
         let file_viz = file.viz.unwrap_or_default();
-        let viz = VizConfig::new(
-            cli.viz_bands.or(file_viz.bands).unwrap_or(DEFAULT_VIZ_BANDS),
-            cli.viz_fft_size.or(file_viz.fft_size).unwrap_or(DEFAULT_VIZ_FFT_SIZE),
-            cli.viz_hop.or(file_viz.hop).unwrap_or(DEFAULT_VIZ_HOP),
-            cli.viz_freq_min.or(file_viz.freq_min).unwrap_or(DEFAULT_VIZ_FREQ_MIN),
-            cli.viz_freq_max.or(file_viz.freq_max).unwrap_or(DEFAULT_VIZ_FREQ_MAX),
-            cli.viz_input_attack_ms.or(file_viz.input_attack_ms).unwrap_or(DEFAULT_VIZ_INPUT_ATTACK_MS),
-            cli.viz_input_release_ms.or(file_viz.input_release_ms).unwrap_or(DEFAULT_VIZ_INPUT_RELEASE_MS),
-            cli.viz_gravity.or(file_viz.gravity).unwrap_or(DEFAULT_VIZ_GRAVITY),
-            cli.viz_noise_reduction.or(file_viz.noise_reduction).unwrap_or(DEFAULT_VIZ_NOISE_REDUCTION),
-            cli.viz_bar_gap.or(file_viz.bar_gap).unwrap_or(DEFAULT_VIZ_BAR_GAP),
-            cli.viz_seg_gap_px.or(file_viz.seg_gap_px).unwrap_or(DEFAULT_VIZ_SEG_GAP_PX),
-            cli.viz_seg_count.or(file_viz.seg_count).unwrap_or(DEFAULT_VIZ_SEG_COUNT),
-        );
+        let viz = VizConfig::new(VizConfigRaw {
+            bands: cli.viz_bands.or(file_viz.bands).unwrap_or(DEFAULT_VIZ_BANDS),
+            fft_size: cli.viz_fft_size.or(file_viz.fft_size).unwrap_or(DEFAULT_VIZ_FFT_SIZE),
+            hop: cli.viz_hop.or(file_viz.hop).unwrap_or(DEFAULT_VIZ_HOP),
+            freq_min: cli.viz_freq_min.or(file_viz.freq_min).unwrap_or(DEFAULT_VIZ_FREQ_MIN),
+            freq_max: cli.viz_freq_max.or(file_viz.freq_max).unwrap_or(DEFAULT_VIZ_FREQ_MAX),
+            input_attack_ms: cli.viz_input_attack_ms.or(file_viz.input_attack_ms).unwrap_or(DEFAULT_VIZ_INPUT_ATTACK_MS),
+            input_release_ms: cli.viz_input_release_ms.or(file_viz.input_release_ms).unwrap_or(DEFAULT_VIZ_INPUT_RELEASE_MS),
+            gravity: cli.viz_gravity.or(file_viz.gravity).unwrap_or(DEFAULT_VIZ_GRAVITY),
+            noise_reduction: cli.viz_noise_reduction.or(file_viz.noise_reduction).unwrap_or(DEFAULT_VIZ_NOISE_REDUCTION),
+            bar_gap: cli.viz_bar_gap.or(file_viz.bar_gap).unwrap_or(DEFAULT_VIZ_BAR_GAP),
+            seg_gap_px: cli.viz_seg_gap_px.or(file_viz.seg_gap_px).unwrap_or(DEFAULT_VIZ_SEG_GAP_PX),
+            seg_count: cli.viz_seg_count.or(file_viz.seg_count).unwrap_or(DEFAULT_VIZ_SEG_COUNT),
+        });
 
-        Self::sanitised(
+        Self::sanitised(Self {
             min_dpi,
             max_dpi,
             dpi,
@@ -581,38 +599,40 @@ impl Config {
             log,
             viz,
             path,
-        )
+        })
     }
 
     /// Ensure DPI bounds are positive and ordered (`min <= max`), and that the
     /// current DPI falls within those bounds. Transition modes are clamped to
-    /// the valid 0..=2 range.
-    fn sanitised(
-        min_dpi: i32,
-        max_dpi: i32,
-        dpi: i32,
-        wireless: bool,
-        usb: bool,
-        reset_stale_accessory: bool,
-        resolution: i32,
-        fps: i32,
-        transition_mode: i32,
-        aa_video_transition_mode: i32,
-        transition_speed: f32,
-        aa_video_transition_speed: f32,
-        theme: i32,
-        gfx_model: i32,
-        fullscreen: bool,
-        hotspot_backend: i32,
-        hotspot_channel: i32,
-        car_name_short: String,
-        app_name: String,
-        car_name_long: String,
-        aa_waiting_text: String,
-        log: LogConfig,
-        viz: VizConfig,
-        path: PathBuf,
-    ) -> Self {
+    /// the valid 0..=2 range. Takes an unsanitised `Self` so the caller
+    /// doesn't have to pass every field positionally.
+    fn sanitised(raw: Self) -> Self {
+        let Config {
+            min_dpi,
+            max_dpi,
+            dpi,
+            wireless,
+            usb,
+            reset_stale_accessory,
+            resolution,
+            fps,
+            transition_mode,
+            aa_video_transition_mode,
+            transition_speed,
+            aa_video_transition_speed,
+            theme,
+            gfx_model,
+            fullscreen,
+            hotspot_backend,
+            hotspot_channel,
+            car_name_short,
+            app_name,
+            car_name_long,
+            aa_waiting_text,
+            log,
+            viz,
+            path,
+        } = raw;
         let mut min_dpi = min_dpi.max(1);
         let mut max_dpi = max_dpi.max(1);
         if min_dpi > max_dpi {
@@ -707,16 +727,14 @@ impl Config {
         };
         match toml::to_string_pretty(&file) {
             Ok(contents) => {
-                if let Some(parent) = self.path.parent() {
-                    if !parent.as_os_str().is_empty() {
-                        if let Err(e) = std::fs::create_dir_all(parent) {
+                if let Some(parent) = self.path.parent()
+                    && !parent.as_os_str().is_empty()
+                        && let Err(e) = std::fs::create_dir_all(parent) {
                             log::warn!(
                                 "Failed to create config directory {}: {e}",
                                 parent.display()
                             );
                         }
-                    }
-                }
                 if let Err(e) = std::fs::write(&self.path, contents) {
                     log::warn!("Failed to write config file {}: {e}", self.path.display());
                 }

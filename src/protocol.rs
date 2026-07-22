@@ -414,18 +414,33 @@ pub(crate) fn build_video_configuration(
     }
 }
 
+/// Parameters for [`AndroidAuto::new`], bundled to keep the call site
+/// readable and avoid a long positional argument list.
+pub(crate) struct AndroidAutoInit {
+    pub(crate) recv: tokio::sync::mpsc::Receiver<MessageToAsync>,
+    pub(crate) send: tokio::sync::mpsc::Sender<MessageFromAsync>,
+    pub(crate) bluetooth: Arc<bluetooth_rust::BluetoothAdapter>,
+    pub(crate) blue_address: String,
+    pub(crate) network: android_auto::NetworkInformation,
+    pub(crate) android_recv: tokio::sync::mpsc::Receiver<android_auto::SendableAndroidAutoMessage>,
+    pub(crate) android_send: tokio::sync::mpsc::Sender<android_auto::SendableAndroidAutoMessage>,
+    pub(crate) video_config: VideoConfiguration,
+    pub(crate) usb_enabled: Arc<AtomicBool>,
+}
+
 impl AndroidAuto {
-    pub(crate) fn new(
-        mut recv: tokio::sync::mpsc::Receiver<MessageToAsync>,
-        send: tokio::sync::mpsc::Sender<MessageFromAsync>,
-        bluetooth: Arc<bluetooth_rust::BluetoothAdapter>,
-        blue_address: String,
-        network: android_auto::NetworkInformation,
-        android_recv: tokio::sync::mpsc::Receiver<android_auto::SendableAndroidAutoMessage>,
-        android_send: tokio::sync::mpsc::Sender<android_auto::SendableAndroidAutoMessage>,
-        video_config: VideoConfiguration,
-        usb_enabled: Arc<AtomicBool>,
-    ) -> Self {
+    pub(crate) fn new(init: AndroidAutoInit) -> Self {
+        let AndroidAutoInit {
+            mut recv,
+            send,
+            bluetooth,
+            blue_address,
+            network,
+            android_recv,
+            android_send,
+            video_config,
+            usb_enabled,
+        } = init;
         let mut sensors = HashSet::new();
         sensors.insert(android_auto::Wifi::sensor_type::Enum::DRIVING_STATUS);
         sensors.insert(android_auto::Wifi::sensor_type::Enum::NIGHT_DATA);
@@ -490,7 +505,7 @@ impl AndroidAuto {
         let b = Box::new(self);
         let a = b.run(config, &mut joinset, &setup).await;
         joinset.join_all().await;
-        relay.map(|r| r.abort());
+        if let Some(r) = relay { r.abort() }
         a
     }
 }

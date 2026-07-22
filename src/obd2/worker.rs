@@ -95,6 +95,8 @@ async fn connect_and_poll(
     let _ = tx.send(Obd2Update::Connected).await;
 
     loop {
+        let tick_start = std::time::Instant::now();
+
         for pid in pids {
             match session
                 .raw_request(pid.cfg.service, &pid.cfg.data, Target::Broadcast)
@@ -120,7 +122,21 @@ async fn connect_and_poll(
                 }
             }
         }
-        tokio::time::sleep(poll_interval).await;
+
+        // Sleep only for however long is left in this tick, so the cycle
+        // period stays close to `poll_interval` regardless of how long the
+        // PIDs themselves took to request (each is a synchronous round trip
+        // over the ELM327 link — see docs/obd2.md's batching limitations).
+        let elapsed = tick_start.elapsed();
+        if let Some(remaining) = poll_interval.checked_sub(elapsed) {
+            tokio::time::sleep(remaining).await;
+        } else {
+            log::warn!(
+                "obd2: polling {} PIDs took {elapsed:?}, longer than poll_interval_ms \
+                 ({poll_interval:?}); running back-to-back with no sleep this tick",
+                pids.len()
+            );
+        }
     }
 }
 

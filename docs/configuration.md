@@ -99,6 +99,19 @@ per-component log filtering.
 | `viz.seg_gap_px` | `--viz-seg-gap-px` | `EVA_VIZ_SEG_GAP_PX` | `2.0` | Vertical gap between segment rows, in pixels. Clamped to `0.0..=20.0`. |
 | `viz.seg_count` | `--viz-seg-count` | `EVA_VIZ_SEG_COUNT` | `50` | Number of discrete vertical VFD segments per bar column. Clamped to `8..=120`. |
 
+### OBD2 telemetry (`[obd2]` table, requires the `obd2` feature)
+
+See [OBD2 Telemetry](obd2.md) for the full guide — connecting to a Bluetooth
+ELM327, defining PIDs with custom formulas, and known limitations (this is
+early plumbing with no UI yet).
+
+| Config key (TOML) | CLI flag | Env var | Default | Description |
+|---|---|---|---|---|
+| `obd2.enabled` | `--obd2-enabled` | `EVA_OBD2_ENABLED` | `false` | Enable the OBD2 worker. |
+| `obd2.device_address` | `--obd2-device-address` | `EVA_OBD2_DEVICE_ADDRESS` | _(unset)_ | Bluetooth MAC address of the paired ELM327. |
+| `obd2.poll_interval_ms` | `--obd2-poll-interval-ms` | `EVA_OBD2_POLL_INTERVAL_MS` | `250` | Poll interval for all configured PIDs, in milliseconds. |
+| `obd2.pids` | _(none)_ | _(none)_ | `[]` | Array of PID definitions (`[[obd2.pids]]`); TOML-file only. See [OBD2 Telemetry](obd2.md#defining-pids-obd2pids). |
+
 ## Example `config.toml`
 
 ```toml

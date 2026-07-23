@@ -25,9 +25,11 @@ mod container;
 mod controls;
 mod gfx;
 mod hostapd;
+#[cfg(feature = "jamesdsp")]
 mod jamesdsp;
 mod logging;
 mod messages;
+#[cfg(feature = "networkmanager-hotspot")]
 mod nmrs_extensions;
 mod protocol;
 mod spectrum;
@@ -88,6 +90,9 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_fullscreen(cfg.fullscreen);
     window.set_hotspot_backend(cfg.hotspot_backend);
     window.set_hotspot_channel(cfg.hotspot_channel);
+    // Lets the DSP/EQ settings tab tell "not compiled in" apart from "not
+    // currently running" (`dsp-connected`, updated live from ui.rs).
+    window.set_dsp_available(cfg!(feature = "jamesdsp"));
     window.set_car_name_short(cfg.car_name_short.as_str().into());
     window.set_app_name(cfg.app_name.as_str().into());
     window.set_car_name_long(cfg.car_name_long.as_str().into());

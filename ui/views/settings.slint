@@ -77,6 +77,7 @@ export component SettingsView inherits Rectangle {
     callback hotspot-channel-changed(int);
 
     // JamesDSP D-Bus connection status and effect toggles.
+    in property <bool> dsp-available: true;
     in property <bool> dsp-connected: false;
     in-out property <bool> dsp-bypass-enabled: false;
     callback dsp-bypass-changed(bool);
@@ -322,6 +323,7 @@ export component SettingsView inherits Rectangle {
 
                     dsp-tab := SettingsDspTab {
                     width: 100%;
+                    dsp-available: root.dsp-available;
                     dsp-connected: root.dsp-connected;
                     bypass-enabled <=> root.dsp-bypass-enabled;
                     bypass-changed(on) => {

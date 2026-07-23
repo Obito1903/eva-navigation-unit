@@ -36,8 +36,8 @@ tracing-subscriber = { version = "0.3", features = [
 # Optional local-visualization backends (off by default).
 tracing-chrome = { version = "0.7", optional = true }
 console-subscriber = { version = "0.4", optional = true }
-zbus = "5"
-zvariant = "5"
+zbus = { version = "5", optional = true }
+zvariant = { version = "5", optional = true }
 
 [build-dependencies]
 slint-build = "1"
@@ -51,7 +51,7 @@ opt-level = 3
 
 [features]
 # Both transport modes enabled by default — match the android-auto path dep
-default = []
+default = ["jamesdsp", "networkmanager-hotspot"]
 
 # Emit a Chrome/Perfetto trace file (open in https://ui.perfetto.dev). See
 # docs for usage; adds the `tracing-chrome` layer.
@@ -60,6 +60,19 @@ chrome-trace = ["dep:tracing-chrome"]
 # Expose a live async task view via `tokio-console`. Requires building with
 # RUSTFLAGS="--cfg tokio_unstable". Adds the `console-subscriber` layer.
 tokio-console = ["dep:console-subscriber"]
+
+# JamesDSP D-Bus client (src/jamesdsp.rs): global bypass, Graphic EQ,
+# Convolver, Equalizer and Bass Boost control from the Settings UI. Pulls in
+# `zbus`/`zvariant`. Disabling it compiles the DSP/EQ settings tab out
+# entirely (it stays in its existing "disconnected" fallback UI state).
+jamesdsp = ["dep:zbus", "dep:zvariant"]
+
+# NetworkManager D-Bus hotspot backend (src/nmrs_extensions.rs), the default
+# Wi-Fi hotspot backend (`hotspot_backend = 0`). Pulls in `zbus`/`zvariant`.
+# Disabling it makes selecting that backend fail gracefully at runtime
+# (falls back to USB-only, same as any other hotspot-setup failure); the
+# `hostapd` backend (`hotspot_backend = 1`) is unaffected — it uses no D-Bus.
+networkmanager-hotspot = ["dep:zbus", "dep:zvariant"]
 
 # Required for the v1 certificate used by android-auto (src/cert.rs).
 # `[patch]` only applies from the crate being built, so it must be duplicated

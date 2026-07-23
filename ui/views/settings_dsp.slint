@@ -22,6 +22,11 @@ export component SettingsDspTab inherits Rectangle {
     property <float> min-db: -20.0;
     property <float> max-db: 20.0;
 
+    // Whether JamesDSP support was compiled into this build at all. When
+    // `false`, `dsp-connected` is meaningless (Rust never sets it) and the
+    // banner below indicates that instead of "not running".
+    in property <bool> dsp-available: true;
+
     // Whether the JamesDSP D-Bus service is currently reachable.
     in property <bool> dsp-connected: false;
 
@@ -67,7 +72,23 @@ export component SettingsDspTab inherits Rectangle {
         }
 
         // ── Connection status banner ─────────────────────────────────────
-        if !root.dsp-connected : Rectangle {
+        if !root.dsp-available : Rectangle {
+            height: 32px;
+            background: Theme.red-dim.with-alpha(0.35);
+            border-width: 1px;
+            border-color: Theme.red-dim;
+
+            Text {
+                text: "JAMESDSP SUPPORT NOT COMPILED INTO THIS BUILD";
+                color: Theme.text-mute;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        if root.dsp-available && !root.dsp-connected : Rectangle {
             height: 32px;
             background: Theme.red-dim.with-alpha(0.35);
             border-width: 1px;

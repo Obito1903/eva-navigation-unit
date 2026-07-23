@@ -9,6 +9,7 @@ use bluetooth_rust::{BluetoothAdapterTrait, MessageToBluetoothHost};
 use android_auto::HeadUnitInfo;
 
 use crate::messages::{MessageFromAsync, MessageToAsync};
+#[cfg(feature = "networkmanager-hotspot")]
 use crate::nmrs_extensions;
 use crate::protocol::AndroidAuto;
 
@@ -104,15 +105,30 @@ impl AndroidAutoContainer {
                             Some(handle)
                         } else {
                             // NetworkManager backend (default).
-                            log::info!("Starting hotspot via NetworkManager backend");
-                            nmrs_extensions::start_hotspot(
-                                hotspot_ssid.clone(),
-                                hotspot_psk.clone(),
-                                &wifi_dev.path,
-                            )
-                            .await
-                            .map_err(|e| format!("Failed to start wifi hotspot: {e}"))?;
-                            None
+                            #[cfg(feature = "networkmanager-hotspot")]
+                            {
+                                log::info!("Starting hotspot via NetworkManager backend");
+                                nmrs_extensions::start_hotspot(
+                                    hotspot_ssid.clone(),
+                                    hotspot_psk.clone(),
+                                    &wifi_dev.path,
+                                )
+                                .await
+                                .map_err(|e| format!("Failed to start wifi hotspot: {e}"))?;
+                                None
+                            }
+                            // Without the `networkmanager-hotspot` feature this backend
+                            // can't be driven; fail the same way any other hotspot setup
+                            // failure does, so the caller falls back to USB-only instead
+                            // of refusing to compile.
+                            #[cfg(not(feature = "networkmanager-hotspot"))]
+                            {
+                                return Err(
+                                    "NetworkManager hotspot backend not compiled into this \
+                                     build (rebuild with the networkmanager-hotspot feature)"
+                                        .to_string(),
+                                );
+                            }
                         };
                         Ok::<(String, Option<crate::hostapd::HostapdHandle>), String>((mac, guard))
                     }

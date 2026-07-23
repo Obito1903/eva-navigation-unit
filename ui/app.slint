@@ -42,6 +42,10 @@ export component AppWindow inherits Window {
     in-out property <int> hotspot-channel: 36;
     callback hotspot-channel-changed(int);
 
+    // Whether JamesDSP support was compiled into this build at all (set once
+    // at startup from Rust via `cfg!(feature = "jamesdsp")`), independent of
+    // `dsp-connected` (the live, runtime D-Bus reachability).
+    in-out property <bool> dsp-available: true;
     // JamesDSP D-Bus connection status and effect toggles (updated from Rust).
     in-out property <bool> dsp-connected: false;
     in-out property <bool> dsp-bypass-enabled: false;
@@ -279,6 +283,7 @@ export component AppWindow inherits Window {
                     hotspot-channel-changed(v) => {
                         root.hotspot-channel-changed(v);
                     }
+                    dsp-available: root.dsp-available;
                     dsp-connected: root.dsp-connected;
                     dsp-bypass-enabled <=> root.dsp-bypass-enabled;
                     dsp-bypass-changed(on) => {

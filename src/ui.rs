@@ -2,14 +2,17 @@
 //! spawns the video decoder, and pumps worker → UI messages on a timer.
 
 use crate::container::{AndroidAutoContainer, VideoSettings};
+#[cfg(feature = "jamesdsp")]
 use crate::jamesdsp::{Command as DspCommand, Effect as DspEffect, Event as DspEvent, JamesDspContainer};
 use crate::messages::{MessageFromAsync, MessageToAsync, VideoCommand};
 use crate::video;
 use crate::AppWindow;
+#[cfg(feature = "jamesdsp")]
 use crate::EqBand;
 use crate::Theme;
 use slint::ComponentHandle;
 use slint::Global;
+#[cfg(feature = "jamesdsp")]
 use slint::{ModelRc, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -302,7 +305,13 @@ pub(crate) fn wire(
     // JamesDSP's own D-Bus state is the sole source of truth here: nothing
     // is cached/persisted locally, and the tab greys out (via `dsp-connected`)
     // whenever the service isn't reachable.
+    //
+    // Without the `jamesdsp` feature none of this is wired up; `dsp-connected`
+    // simply keeps its default `false` value, so the DSP/EQ settings tab
+    // stays in its existing "disconnected" fallback UI state.
+    #[cfg(feature = "jamesdsp")]
     let mut dsp_container = JamesDspContainer::new();
+    #[cfg(feature = "jamesdsp")]
     {
         let send = dsp_container.send.clone();
         window.on_dsp_bypass_changed(move |bypass_on| {
@@ -314,30 +323,35 @@ pub(crate) fn wire(
             let _ = send.try_send(DspCommand::MasterEnable(!bypass_on));
         });
     }
+    #[cfg(feature = "jamesdsp")]
     {
         let send = dsp_container.send.clone();
         window.on_dsp_graphiceq_changed(move |on| {
             let _ = send.try_send(DspCommand::Effect(DspEffect::GraphicEq, on));
         });
     }
+    #[cfg(feature = "jamesdsp")]
     {
         let send = dsp_container.send.clone();
         window.on_dsp_convolver_changed(move |on| {
             let _ = send.try_send(DspCommand::Effect(DspEffect::Convolver, on));
         });
     }
+    #[cfg(feature = "jamesdsp")]
     {
         let send = dsp_container.send.clone();
         window.on_dsp_equalizer_changed(move |on| {
             let _ = send.try_send(DspCommand::Effect(DspEffect::Equalizer, on));
         });
     }
+    #[cfg(feature = "jamesdsp")]
     {
         let send = dsp_container.send.clone();
         window.on_dsp_bassboost_changed(move |on| {
             let _ = send.try_send(DspCommand::Effect(DspEffect::BassBoost, on));
         });
     }
+    #[cfg(feature = "jamesdsp")]
     {
         let send = dsp_container.send.clone();
         window.on_dsp_eq_band_changed(move |index, gain| {
@@ -348,6 +362,7 @@ pub(crate) fn wire(
             });
         });
     }
+    #[cfg(feature = "jamesdsp")]
     {
         let send = dsp_container.send.clone();
         window.on_dsp_eq_band_committed(move |index, gain| {
@@ -487,33 +502,36 @@ pub(crate) fn wire(
     std::mem::forget(timer);
 
     // ── Poll JamesDSP → UI messages ────────────────────────────────────────
-    let dsp_window_weak = window.as_weak();
-    let dsp_timer = slint::Timer::default();
-    dsp_timer.start(slint::TimerMode::Repeated, POLL_INTERVAL, move || {
-        let Some(win) = dsp_window_weak.upgrade() else {
-            return;
-        };
+    #[cfg(feature = "jamesdsp")]
+    {
+        let dsp_window_weak = window.as_weak();
+        let dsp_timer = slint::Timer::default();
+        dsp_timer.start(slint::TimerMode::Repeated, POLL_INTERVAL, move || {
+            let Some(win) = dsp_window_weak.upgrade() else {
+                return;
+            };
 
-        while let Ok(DspEvent::Snapshot(snapshot)) = dsp_container.recv.try_recv() {
-            win.set_dsp_connected(snapshot.connected);
-            win.set_dsp_bypass_enabled(!snapshot.master_enable);
-            win.set_dsp_graphiceq_enabled(snapshot.graphiceq_enable);
-            win.set_dsp_convolver_enabled(snapshot.convolver_enable);
-            win.set_dsp_equalizer_enabled(snapshot.tone_enable);
-            win.set_dsp_bassboost_enabled(snapshot.bass_enable);
+            while let Ok(DspEvent::Snapshot(snapshot)) = dsp_container.recv.try_recv() {
+                win.set_dsp_connected(snapshot.connected);
+                win.set_dsp_bypass_enabled(!snapshot.master_enable);
+                win.set_dsp_graphiceq_enabled(snapshot.graphiceq_enable);
+                win.set_dsp_convolver_enabled(snapshot.convolver_enable);
+                win.set_dsp_equalizer_enabled(snapshot.tone_enable);
+                win.set_dsp_bassboost_enabled(snapshot.bass_enable);
 
-            let bands: Vec<EqBand> = snapshot
-                .bands
-                .iter()
-                .map(|b| EqBand {
-                    freq: b.freq,
-                    gain: b.gain,
-                })
-                .collect();
-            win.set_dsp_eq_bands(ModelRc::new(VecModel::from(bands)));
-        }
-    });
-    std::mem::forget(dsp_timer);
+                let bands: Vec<EqBand> = snapshot
+                    .bands
+                    .iter()
+                    .map(|b| EqBand {
+                        freq: b.freq,
+                        gain: b.gain,
+                    })
+                    .collect();
+                win.set_dsp_eq_bands(ModelRc::new(VecModel::from(bands)));
+            }
+        });
+        std::mem::forget(dsp_timer);
+    }
 }
 
 /// Build an android-auto touch input message from UI-space coordinates.

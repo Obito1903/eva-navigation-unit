@@ -273,6 +273,10 @@ struct Cli {
     #[arg(long, env = "EVA_LOG_BT")]
     log_bt: Option<String>,
 
+    /// Log level override for the OBD2 component.
+    #[arg(long, env = "EVA_LOG_OBD2")]
+    log_obd2: Option<String>,
+
     /// Also write logs to this file (omit for console only).
     #[arg(long, env = "EVA_LOG_FILE")]
     log_file: Option<PathBuf>,
@@ -335,6 +339,7 @@ struct LogFileConfig {
     audio: Option<String>,
     aa: Option<String>,
     bt: Option<String>,
+    obd2: Option<String>,
     file: Option<PathBuf>,
     format: Option<String>,
 }
@@ -433,6 +438,7 @@ pub(crate) struct LogConfig {
     pub(crate) audio: Option<String>,
     pub(crate) aa: Option<String>,
     pub(crate) bt: Option<String>,
+    pub(crate) obd2: Option<String>,
     /// Optional file to also write logs to (console output is always on).
     pub(crate) file: Option<PathBuf>,
     /// Output format: `text` or `json`.
@@ -685,6 +691,7 @@ impl Config {
             audio: cli.log_audio.or(file_log.audio),
             aa: cli.log_aa.or(file_log.aa),
             bt: cli.log_bt.or(file_log.bt),
+            obd2: cli.log_obd2.or(file_log.obd2),
             file: cli.log_file.or(file_log.file),
             format: cli
                 .log_format
@@ -877,6 +884,7 @@ impl Config {
                 audio: self.log.audio.clone(),
                 aa: self.log.aa.clone(),
                 bt: self.log.bt.clone(),
+                obd2: self.log.obd2.clone(),
                 file: self.log.file.clone(),
                 format: Some(self.log.format.clone()),
             }),

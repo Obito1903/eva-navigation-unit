@@ -19,6 +19,7 @@
 //! | Audio | `eva_navigation_unit::audio`, `android_auto::{mediaaudio,speechaudio,sysaudio}` |
 //! | AA    | `eva_navigation_unit::container`, `eva_navigation_unit::protocol`, `android_auto::{lib,control,ssl,common,video}` |
 //! | BT    | `eva_navigation_unit::hostapd`, `android_auto::{bluetooth,usb}` |
+//! | OBD2  | `eva_navigation_unit::obd2` |
 
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::prelude::*;
@@ -55,6 +56,8 @@ const BT_MODULES: &[&str] = &[
     "android_auto::bluetooth",
     "android_auto::usb",
 ];
+/// Module paths that make up the OBD2 component.
+const OBD2_MODULES: &[&str] = &["eva_navigation_unit::obd2"];
 
 /// Guards that must be kept alive for the lifetime of the process so buffered
 /// log output is flushed on exit. Dropping these flushes pending records.
@@ -156,6 +159,7 @@ fn build_filter(log: &LogConfig) -> EnvFilter {
     push_component(&mut directives, &log.audio, AUDIO_MODULES);
     push_component(&mut directives, &log.aa, AA_MODULES);
     push_component(&mut directives, &log.bt, BT_MODULES);
+    push_component(&mut directives, &log.obd2, OBD2_MODULES);
 
     // `android_auto::usb` logs raw transfer bytes at info level, which is very
     // noisy. Quiet it by default unless the BT component level was set.

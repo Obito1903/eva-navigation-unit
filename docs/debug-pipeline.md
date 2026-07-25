@@ -21,6 +21,7 @@ raise or lower verbosity per subsystem.
 | **Audio** | `eva_navigation_unit::audio`, `android_auto::{mediaaudio, speechaudio, sysaudio}` |
 | **AA**    | `eva_navigation_unit::container`, `eva_navigation_unit::protocol`, `android_auto::{lib, control, ssl, common, video}` |
 | **BT**    | `eva_navigation_unit::hostapd`, `android_auto::{bluetooth, usb}` |
+| **OBD2**  | `eva_navigation_unit::obd2` |
 
 Levels (lowest → highest verbosity): `error`, `warn`, `info`, `debug`, `trace`.
 
@@ -58,6 +59,7 @@ EVA_LOG_UI=warn       # UI component
 EVA_LOG_AUDIO=debug   # Audio component
 EVA_LOG_AA=trace      # Android Auto component
 EVA_LOG_BT=trace      # Bluetooth/transport component
+EVA_LOG_OBD2=trace    # OBD2 component
 EVA_LOG_FILE=/tmp/eva-ui.log
 EVA_LOG_FORMAT=json   # text | json
 ```
@@ -73,6 +75,7 @@ ui     = "debug"           # per-component overrides
 audio  = "info"
 aa     = "debug"
 bt     = "trace"
+obd2   = "debug"
 file   = "/tmp/eva-ui.log" # omit for console only
 format = "json"            # text | json
 ```

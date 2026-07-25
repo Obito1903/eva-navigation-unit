@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use obd2_core::adapter::Adapter;
 use obd2_core::adapter::elm327::Elm327Adapter;
+use obd2_core::error::Obd2Error;
 use obd2_core::protocol::service::Target;
 use obd2_core::session::Session;
 
@@ -104,6 +105,11 @@ async fn connect_and_poll(
             {
                 Ok(bytes) => match evaluate(&pid.formula, &bytes) {
                     Some(value) => {
+                        log::debug!(
+                            "obd2: PID '{}' raw={bytes:?} -> {value} {}",
+                            pid.cfg.name,
+                            pid.cfg.unit
+                        );
                         let _ = tx
                             .send(Obd2Update::Reading {
                                 name: pid.cfg.name.clone(),
@@ -117,6 +123,12 @@ async fn connect_and_poll(
                         pid.cfg.name
                     ),
                 },
+                Err(e) if is_recoverable(&e) => {
+                    log::warn!(
+                        "obd2: PID '{}' request failed: {e}; skipping until next poll",
+                        pid.cfg.name
+                    );
+                }
                 Err(e) => {
                     return Err(format!("PID '{}' request failed: {e}", pid.cfg.name));
                 }
@@ -138,6 +150,22 @@ async fn connect_and_poll(
             );
         }
     }
+}
+
+/// Whether a failed PID request indicates the request/response itself was
+/// bad (vehicle didn't have the data, doesn't support the PID, rejected it,
+/// or was slow to answer) rather than the ELM327 link being dead. These are
+/// skipped for this tick only; the polling loop keeps going. Anything else
+/// (transport/adapter/IO errors) is treated as a dead link and bubbles up to
+/// trigger a reconnect.
+fn is_recoverable(e: &Obd2Error) -> bool {
+    matches!(
+        e,
+        Obd2Error::NoData
+            | Obd2Error::Timeout
+            | Obd2Error::UnsupportedPid { .. }
+            | Obd2Error::NegativeResponse { .. }
+    )
 }
 
 /// Binds response bytes to `A`, `B`, `C`, ... (the SAE/Wikipedia OBD-II PID

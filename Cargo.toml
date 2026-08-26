@@ -48,6 +48,8 @@ zvariant = { version = "5", optional = true }
 # aren't in the published 0.2 crates.io release yet.
 obd2-core = { path = "../obd2-core/crates/obd2-core", default-features = false, optional = true }
 meval = { version = "0.2", features = ["serde"], optional = true }
+# Bounded random walks for the OBD2 mock backend (src/obd2/mock.rs).
+rand = { version = "0.9", optional = true }
 
 [build-dependencies]
 slint-build = "1"
@@ -86,7 +88,7 @@ networkmanager-hotspot = ["dep:zbus", "dep:zvariant"]
 
 # OBD2 telemetry over a Bluetooth ELM327 adapter (see `src/obd2/`). Off by
 # default; still early plumbing with no UI integration yet.
-obd2 = ["dep:obd2-core", "dep:meval"]
+obd2 = ["dep:obd2-core", "dep:meval", "dep:rand"]
 
 # Required for the v1 certificate used by android-auto (src/cert.rs).
 # `[patch]` only applies from the crate being built, so it must be duplicated

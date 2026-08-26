@@ -14,6 +14,7 @@
 //! depend on an active AA session — the ELM327 is a logically separate
 //! Bluetooth peer from the phone.
 
+mod mock;
 mod transport;
 mod worker;
 

@@ -107,6 +107,9 @@ pub(crate) const DEFAULT_VIZ_SEG_COUNT: u32 = 50;
 /// Whether the OBD2 worker is enabled by default.
 #[cfg(feature = "obd2")]
 pub(crate) const DEFAULT_OBD2_ENABLED: bool = false;
+/// Whether the OBD2 worker runs against a simulated ELM327 link by default.
+#[cfg(feature = "obd2")]
+pub(crate) const DEFAULT_OBD2_MOCK: bool = false;
 /// Default poll interval for configured PIDs, in milliseconds.
 #[cfg(feature = "obd2")]
 pub(crate) const DEFAULT_OBD2_POLL_INTERVAL_MS: u32 = 250;
@@ -299,6 +302,13 @@ struct Cli {
     #[arg(long, env = "EVA_OBD2_DEVICE_ADDRESS")]
     obd2_device_address: Option<String>,
 
+    /// Simulate the configured PIDs with realistic random values instead of
+    /// connecting to a real ELM327 (for UI testing without hardware). When
+    /// set, `device_address` is not required.
+    #[cfg(feature = "obd2")]
+    #[arg(long, env = "EVA_OBD2_MOCK")]
+    obd2_mock: Option<bool>,
+
     /// Poll interval for the configured OBD2 PIDs, in milliseconds.
     #[cfg(feature = "obd2")]
     #[arg(long, env = "EVA_OBD2_POLL_INTERVAL_MS")]
@@ -371,6 +381,10 @@ struct VizFileConfig {
 struct Obd2FileConfig {
     enabled: Option<bool>,
     device_address: Option<String>,
+    /// Simulate the configured PIDs instead of connecting to a real ELM327
+    /// (for UI testing without hardware). Defaults to `false`; when `true`,
+    /// `device_address` is not required.
+    mock: Option<bool>,
     poll_interval_ms: Option<u32>,
     /// User-defined PIDs, e.g.:
     /// ```toml
@@ -550,6 +564,11 @@ pub(crate) struct Obd2Config {
     /// Bluetooth MAC address of the paired ELM327 adapter. Pairing itself is
     /// a manual/OS-level step for now; there is no in-app discovery yet.
     pub(crate) device_address: Option<String>,
+    /// Simulate the configured PIDs with realistic bounded-random values
+    /// instead of connecting to a real ELM327 (see `obd2::mock`). Lets the
+    /// UI be exercised with live-looking telemetry without hardware;
+    /// `device_address` is ignored when this is set.
+    pub(crate) mock: bool,
     /// Poll interval for the configured PIDs, in milliseconds.
     pub(crate) poll_interval_ms: u32,
     /// User-defined PIDs to poll (see `[[obd2.pids]]` in the config file).
@@ -744,6 +763,7 @@ impl Config {
                     .or(file_obd2.enabled)
                     .unwrap_or(DEFAULT_OBD2_ENABLED),
                 device_address: cli.obd2_device_address.or(file_obd2.device_address),
+                mock: cli.obd2_mock.or(file_obd2.mock).unwrap_or(DEFAULT_OBD2_MOCK),
                 poll_interval_ms: cli
                     .obd2_poll_interval_ms
                     .or(file_obd2.poll_interval_ms)
@@ -927,6 +947,7 @@ impl Config {
             obd2: Some(Obd2FileConfig {
                 enabled: Some(self.obd2.enabled),
                 device_address: self.obd2.device_address.clone(),
+                mock: Some(self.obd2.mock),
                 poll_interval_ms: Some(self.obd2.poll_interval_ms),
                 pids: self
                     .obd2

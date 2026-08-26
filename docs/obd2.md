@@ -33,11 +33,33 @@ cargo run --features obd2
 | Config key (TOML) | CLI flag | Env var | Default | Description |
 |---|---|---|---|---|
 | `obd2.enabled` | `--obd2-enabled` | `EVA_OBD2_ENABLED` | `false` | Enable the OBD2 worker. |
-| `obd2.device_address` | `--obd2-device-address` | `EVA_OBD2_DEVICE_ADDRESS` | _(unset)_ | Bluetooth MAC address of the paired ELM327, e.g. `"AA:BB:CC:DD:EE:FF"`. |
+| `obd2.device_address` | `--obd2-device-address` | `EVA_OBD2_DEVICE_ADDRESS` | _(unset)_ | Bluetooth MAC address of the paired ELM327, e.g. `"AA:BB:CC:DD:EE:FF"`. Not required when `mock` is `true`. |
+| `obd2.mock` | `--obd2-mock` | `EVA_OBD2_MOCK` | `false` | Simulate the configured PIDs instead of connecting to a real ELM327 — see [Mock mode](#mock-mode-no-hardware). |
 | `obd2.poll_interval_ms` | `--obd2-poll-interval-ms` | `EVA_OBD2_POLL_INTERVAL_MS` | `250` | Poll interval for all configured PIDs, in milliseconds. |
 
 `[[obd2.pids]]` (an array of tables) is only configurable from the TOML file
 — there's no CLI/env equivalent for the PID list itself.
+
+## Mock mode (no hardware)
+
+Setting `obd2.mock = true` (or `--obd2-mock` / `EVA_OBD2_MOCK=true`) skips the
+ELM327/Bluetooth connection entirely and instead generates realistic,
+continuously-changing values for whichever configured PIDs it recognises by
+`name` — useful for testing UI/telemetry consumers without a car or adapter
+present. `device_address` is ignored (and not required) in this mode.
+
+Each simulated signal is an independent bounded random walk (or a small
+variation — a warm-up curve, a depleting-then-refuelling tank, an
+ever-increasing odometer, or an infrequently-changing gear) tuned to stay
+within realistic bounds for that value. There is no correlation between
+signals (e.g. `gear` does not track `vehicle_speed`).
+
+Recognised PID names (see `profile_for` in `src/obd2/mock.rs` for exact
+bounds): `engine_rpm`, `vehicle_speed`, `odometer`, `fuel_level`, `oil_temp`,
+`fuel_rate`, `gear`, `boost_pressure_actual`, `boost_pressure_commanded`. Any
+other configured PID name has no simulated profile and is skipped (logged at
+`debug`) — mock mode only fakes physical values by name, it does not
+simulate the underlying request/response/formula pipeline at all.
 
 ## Defining PIDs (`[[obd2.pids]]`)
 

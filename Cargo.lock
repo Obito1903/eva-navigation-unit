@@ -1784,6 +1784,7 @@ dependencies = [
  "nmrs",
  "obd2-core",
  "openh264",
+ "rand 0.9.4",
  "ringbuf",
  "rustfft",
  "serde",

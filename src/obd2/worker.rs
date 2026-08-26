@@ -67,6 +67,11 @@ pub(super) async fn run(cfg: Obd2Config, tx: tokio::sync::mpsc::Sender<Obd2Updat
         log::debug!("obd2: disabled, not starting");
         return;
     }
+
+    if cfg.mock {
+        return super::mock::run(cfg, tx).await;
+    }
+
     let Some(device_address) = cfg.device_address.clone() else {
         log::warn!("obd2: enabled but no device_address configured; not starting");
         return;

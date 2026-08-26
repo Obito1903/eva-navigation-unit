@@ -60,10 +60,17 @@ unit = "rpm"
 | `pid` | Hex string of the request data that follows the service byte — one byte for standard Mode 01 PIDs (`"0C"`), two bytes for enhanced Mode 22 DIDs (`"100C"`). Always an even number of hex digits; each pair is one byte, so byte count is never ambiguous. |
 | `formula` | Expression evaluated with the response bytes bound to `A`, `B`, `C`, `D`, ... (the SAE/Wikipedia [OBD-II PIDs](https://en.wikipedia.org/wiki/OBD-II_PIDs) convention) — formulas from that page can be pasted in directly. Evaluated with [`meval`](https://docs.rs/meval). Invalid formulas are logged and skipped at startup rather than crashing the app. |
 | `unit` | Arbitrary physical unit label attached to the reading (e.g. `"rpm"`, `"°C"`, `"km/h"`), not otherwise interpreted. |
+| `module` | ECU module targeted by enhanced (service `0x21`/`0x22`) PIDs: `"ecm"`, `"tcm"` (SAE J1979-2 standard 11-bit CAN addressing), or a raw hex request header (e.g. `"714"`) for modules outside that standard. Ignored for standard Mode 01 PIDs. Defaults to `"ecm"` when omitted. |
 
-Requests go through `obd2-core`'s raw-request escape hatch (not its typed
-standard-PID API), so any service/data combination your adapter and vehicle
-support can be expressed this way — including manufacturer-specific PIDs.
+Standard Mode 01 PIDs go through `obd2-core`'s raw-request escape hatch, so
+any service/data combination your adapter and vehicle support can be
+expressed this way. Enhanced PIDs (service `0x21`/`0x22`) go through
+[`Session::raw_physical_request`](https://docs.rs/obd2-core/latest/obd2_core/session/struct.Session.html#method.raw_physical_request)
+against the CAN header resolved from `module` — the adapter issues `AT SH`
+to switch to that header before the request (see `obd2::worker::resolve_module_header`
+and "Enhanced PID addressing" below) — which requires exactly a 2-byte DID
+in `pid`; PIDs with an invalid byte count for their service are logged and
+skipped at startup rather than crashing the app.
 
 ### Standard Mode 01 PIDs
 
@@ -150,6 +157,27 @@ unit = "hPa"
 > real hardware. Sanity-check readings against known values (fuel gauge,
 > actual gear, etc.) before trusting them.
 
+### Enhanced PID addressing (`module`)
+
+Enhanced PIDs need the ELM327 pointed at a specific ECU's CAN request ID
+before the request goes out (an `AT SH` command), otherwise the functional
+broadcast address the adapter auto-negotiated is used, and the vehicle either
+doesn't answer or answers from the wrong module. `module` controls this:
+
+- `"ecm"` → `0x7E0` request / `0x7E8` response (SAE J1979-2 standard
+  physical addressing, ECU #1) — the default.
+- `"tcm"` → `0x7E1` request / `0x7E9` response (ECU #2).
+- Anything else is parsed as a raw hex 11-bit request header (e.g.
+  `module = "714"`); the response ID is assumed to be the request ID + 8
+  (the standard physical-addressing convention — override by editing
+  `resolve_module_header` in `src/obd2/worker.rs` if your module doesn't
+  follow it).
+
+Only `ecm`/`tcm` are standardized; other VAG modules (ABS, airbag, instrument
+cluster, ...) use manufacturer-specific addressing that varies by platform,
+so look up the header for your vehicle and pass it directly, e.g.
+`module = "714"`.
+
 ## Formula variable convention
 
 Response bytes are bound to `A`, `B`, `C`, `D`, ... in order (up to 26,
@@ -169,3 +197,8 @@ crashing the worker.
 - One PID request per poll tick, requested sequentially — there's no batching
   or per-PID interval yet, so a long PID list scales linearly with
   `poll_interval_ms`.
+- `obd2-core` is vendored as a local path dependency (a sibling checkout of
+  [`trepidity/obd2-core`](https://github.com/trepidity/obd2-core)) rather
+  than the published crates.io `0.2` release, since enhanced-PID header
+  switching (`Session::raw_physical_request`, real `AT SH` support in the
+  ELM327 adapter) isn't in a published release yet.

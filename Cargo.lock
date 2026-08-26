@@ -3957,11 +3957,10 @@ dependencies = [
 
 [[package]]
 name = "obd2-core"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a43b6fcabd7b7f4165f99d2c43c319ce08d1dca8b6e348976f9ff7228ff55e6"
+version = "0.3.0-dev"
 dependencies = [
  "async-trait",
+ "chrono",
  "serde",
  "serde_json",
  "serde_yaml",

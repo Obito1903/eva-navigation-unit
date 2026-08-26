@@ -110,6 +110,10 @@ pub(crate) const DEFAULT_OBD2_ENABLED: bool = false;
 /// Default poll interval for configured PIDs, in milliseconds.
 #[cfg(feature = "obd2")]
 pub(crate) const DEFAULT_OBD2_POLL_INTERVAL_MS: u32 = 250;
+/// Default ECU module targeted by enhanced (service `0x21`/`0x22`) PIDs when
+/// `module` is not set on a `[[obd2.pids]]` entry.
+#[cfg(feature = "obd2")]
+pub(crate) const DEFAULT_OBD2_MODULE: &str = "ecm";
 
 /// Command-line arguments. `clap` also reads the listed environment variables,
 /// with CLI flags taking precedence over the environment.
@@ -385,6 +389,12 @@ struct Obd2FileConfig {
     /// to `A`, `B`, `C`, `D`, ... matching the SAE/Wikipedia OBD-II PID
     /// convention, so formulas from
     /// https://en.wikipedia.org/wiki/OBD-II_PIDs can be pasted in directly.
+    /// `module` (enhanced PIDs only) selects which ECU the request targets:
+    /// `"ecm"` or `"tcm"` (SAE J1979-2 standard addressing), or a raw hex
+    /// 11-bit CAN request header (e.g. `"714"`) for modules that don't
+    /// follow it. The adapter issues `AT SH` to switch to that header before
+    /// the request and expects the response 8 CAN IDs higher (the standard
+    /// physical-addressing convention). Defaults to `"ecm"` when omitted.
     #[serde(default)]
     pids: Vec<Obd2PidFileConfig>,
 }
@@ -400,6 +410,11 @@ struct Obd2PidFileConfig {
     pid: String,
     formula: String,
     unit: String,
+    /// ECU module targeted by enhanced (service `0x21`/`0x22`) PIDs:
+    /// `"ecm"`/`"tcm"`, or a raw hex 11-bit CAN request header (e.g.
+    /// `"714"`) for modules outside the SAE J1979-2 standard. Ignored for
+    /// standard Mode 01 PIDs. Defaults to `"ecm"` when omitted.
+    module: Option<String>,
 }
 
 /// Parse a `pid` hex string (e.g. `"0C"` or `"100C"`) into raw bytes.
@@ -562,6 +577,11 @@ pub(crate) struct Obd2PidConfig {
     pub(crate) formula: String,
     /// Arbitrary physical unit label (e.g. "rpm", "\u00b0C", "km/h").
     pub(crate) unit: String,
+    /// ECU module targeted by enhanced (service `0x21`/`0x22`) PIDs:
+    /// `"ecm"`/`"tcm"`, or a raw hex 11-bit CAN request header (e.g.
+    /// `"714"`). Ignored for standard Mode 01 PIDs. See
+    /// `obd2::worker::resolve_module_header`.
+    pub(crate) module: String,
 }
 
 /// Fully resolved runtime configuration.
@@ -739,6 +759,7 @@ impl Config {
                             data,
                             formula: p.formula,
                             unit: p.unit,
+                            module: p.module.unwrap_or_else(|| DEFAULT_OBD2_MODULE.to_string()),
                         })
                     })
                     .collect(),
@@ -919,6 +940,7 @@ impl Config {
                             pid: hex,
                             formula: p.formula.clone(),
                             unit: p.unit.clone(),
+                            module: Some(p.module.clone()),
                         }
                     })
                     .collect(),

@@ -10,7 +10,7 @@ use bluetooth_rust::{
     BluetoothUuid, MessageToBluetoothHost, ResponseToPasskey,
 };
 use obd2_core::error::Obd2Error;
-use obd2_core::transport::Transport;
+use obd2_core::transport::Link;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// The conventional RFCOMM channel used by most ELM327 Serial Port Profile
@@ -18,7 +18,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 const FALLBACK_SPP_CHANNEL: u8 = 1;
 
 /// A connected Bluetooth RFCOMM socket to a paired ELM327 adapter, wired up
-/// as an `obd2_core::transport::Transport`.
+/// as an `obd2_core::transport::Link`.
 pub(super) struct BluetoothRfcommTransport {
     socket: bluetooth_rust::BluetoothSocket,
 }
@@ -94,7 +94,7 @@ impl BluetoothRfcommTransport {
 }
 
 #[async_trait]
-impl Transport for BluetoothRfcommTransport {
+impl Link for BluetoothRfcommTransport {
     async fn write(&mut self, data: &[u8]) -> Result<(), Obd2Error> {
         let stream = self
             .socket

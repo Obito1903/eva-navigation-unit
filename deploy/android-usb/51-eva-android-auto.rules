@@ -1,0 +1,19 @@
+# Grant non-root access to Android phones over USB for Android Auto (AOA
+# handshake, plus ADB/MTP enumeration before the AOA switch happens).
+# Installed at /etc/udev/rules.d/51-eva-android-auto.rules.
+#
+# Without this, opening the phone's USB device node fails with
+# "failed to open device (errno 13)" (EACCES) for any non-root user, since the
+# kernel/udev default ownership on USB device nodes is root-only.
+#
+# Devices already switched into Android Open Accessory (AOA) mode.
+SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="2d00", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="2d01", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+
+# Phones not yet in AOA mode (the initial open before identify/start is sent):
+# match by ADB (class ff, subclass 42, protocol 01) or MTP (class 06, subclass
+# 01) interface, via udev's ID_USB_INTERFACES property that usb_id populates
+# for every interface of a composite device. This covers most vendors without
+# needing a per-manufacturer idVendor list.
+SUBSYSTEM=="usb", ENV{ID_USB_INTERFACES}=="*:ff4201:*", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ENV{ID_USB_INTERFACES}=="*:0601??:*", MODE="0660", GROUP="plugdev", TAG+="uaccess"

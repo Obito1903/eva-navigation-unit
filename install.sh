@@ -11,10 +11,17 @@
 # when one exists in the working directory, e.g. during development).
 #
 # Override the install prefix with PREFIX=/some/path ./install.sh
+# Install the debug binary instead of release with DEBUG=1 ./install.sh
 set -euo pipefail
 
 APP_NAME="eva-ui"
-BIN_SRC="target/release/eva-navigation-unit"
+PROFILE_DIR="release"
+CARGO_BUILD_FLAGS=(--release)
+if [[ "${DEBUG:-0}" != "0" ]]; then
+    PROFILE_DIR="debug"
+    CARGO_BUILD_FLAGS=()
+fi
+BIN_SRC="target/$PROFILE_DIR/eva-navigation-unit"
 
 PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR="$PREFIX/bin"
@@ -27,10 +34,10 @@ DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Build the release binary if it has not been built yet.
+# Build the binary if it has not been built yet.
 if [[ ! -f "$BIN_SRC" ]]; then
-    echo "Release binary not found at $BIN_SRC; building with cargo..."
-    cargo build --release
+    echo "$PROFILE_DIR binary not found at $BIN_SRC; building with cargo..."
+    cargo build "${CARGO_BUILD_FLAGS[@]}"
 fi
 
 mkdir -p "$BIN_DIR" "$DESKTOP_DIR"

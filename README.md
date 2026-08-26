@@ -120,6 +120,20 @@ Then set `hotspot_backend = 1` (or the desired backend) in eva-ui's
 and [deploy/eva-hotspot/hotspot.env](deploy/eva-hotspot/hotspot.env) for the
 available options (SSID/PSK, channel, country code, DHCP range).
 
+## USB permissions (for wired Android Auto)
+
+USB device nodes are root-only by default, so running eva-ui as a normal user
+fails to open the phone with `Failed to open android device failed to open
+device (errno 13)` (EACCES). Install a udev rule once to grant access:
+
+```sh
+cd deploy/android-usb
+sudo ./install.sh <username>             # one-time, needs root
+```
+
+The target user must start a new login session (log out/in, or reconnect over
+SSH) for the added group membership to apply, then unplug/replug the phone.
+
 ## Run
 
 ```sh

@@ -47,7 +47,9 @@ varying vec2 v_uv;
 
 void main() {
     float px = v_uv.x * u_width;
-    float py = v_uv.y * u_height;
+    // v_uv.y == 0 is the bottom of the screen (GL NDC convention), but
+    // top_pad/bot_pad below are measured from the visible top/bottom, so flip.
+    float py = (1.0 - v_uv.y) * u_height;
 
     // ── Content area ──────────────────────────────────────────────────────
     float cx     = px - u_sidebar;

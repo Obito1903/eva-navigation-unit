@@ -1,0 +1,9 @@
+# Grant non-root write access to the kernel backlight sysfs interface, used by
+# eva-ui to drive physical screen brightness (src/controls.rs::Backlight).
+# Installed at /etc/udev/rules.d/52-eva-backlight.rules.
+#
+# Without this, writing to /sys/class/backlight/<device>/brightness as a
+# non-root user fails silently (permission denied), logged as a warning by
+# eva-ui but leaving the brightness slider non-functional. Mirrors the
+# ownership most distros already use by default (root:video, 0664).
+SUBSYSTEM=="backlight", RUN+="/bin/chgrp video /sys%p/brightness", RUN+="/bin/chmod 0664 /sys%p/brightness"

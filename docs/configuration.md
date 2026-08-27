@@ -52,6 +52,8 @@ CLI flags always take precedence over the config file.
 | `aa_video_transition_speed` | `--aa-video-transition-speed` | `EVA_AA_VIDEO_TRANSITION_SPEED` | `1.0` | Android Auto video transition speed multiplier. Range `0.25`–`3.0`. |
 | `theme` | `--theme` | `EVA_THEME` | `0` | Color theme: `0` = NERV-HQ, `1` = MATRIX. |
 | `gfx_model` | `--gfx-model` | `EVA_GFX_MODEL` | `0` | GL underlay wireframe model: `0` = sphere, `1` = cube, `2` = car, `3` = speaker. |
+| `gfx_frost_enabled` | `--gfx-frost-enabled` | `EVA_GFX_FROST_ENABLED` | `true` | Enable the GL underlay's frosted-glass blur/tint post pass. Disable to draw the wireframe model directly (sharper, and avoids a faint near-black haze that can cause luminance/dirty-screen artifacts on some OLED panels). |
+| `gfx_bg_brightness` | `--gfx-bg-brightness` | `EVA_GFX_BG_BRIGHTNESS` | `1.0` | GL underlay background render brightness multiplier. Range `0.0`–`1.5`. |
 | `fullscreen` | `--fullscreen` | `EVA_FULLSCREEN` | `false` | Start the window in fullscreen mode. |
 | `hotspot_backend` | `--hotspot-backend` | `EVA_HOTSPOT_BACKEND` | `0` | Wi-Fi hotspot backend for Android Auto wireless: `0` = NetworkManager, `1` = hostapd. See [hostapd install instructions](../README.md#installing-the-wi-fi-hotspot-service-for-android-auto-wireless). |
 | `hotspot_channel` | `--hotspot-channel` | `EVA_HOTSPOT_CHANNEL` | `36` | 5 GHz Wi-Fi channel used by the `hostapd` backend (`0` = automatic). Ignored by the NetworkManager backend. |
@@ -116,6 +118,8 @@ transition_speed = 1.0
 aa_video_transition_speed = 1.0
 theme = 0
 gfx_model = 0
+gfx_frost_enabled = true
+gfx_bg_brightness = 1.0
 fullscreen = false
 hotspot_backend = 0
 hotspot_channel = 36

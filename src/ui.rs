@@ -272,6 +272,28 @@ pub(crate) fn wire(
         });
     }
 
+    // ── GL underlay frost effect: Settings UI → config ────────────────────
+    {
+        let cfg = cfg.clone();
+        window.on_gfx_frost_enabled_changed(move |enabled| {
+            log::debug!("Background frost effect {}", if enabled { "enabled" } else { "disabled" });
+            let mut cfg = cfg.borrow_mut();
+            cfg.gfx_frost_enabled = enabled;
+            cfg.save();
+        });
+    }
+
+    // ── GL underlay background brightness: Settings UI → config ──────────
+    {
+        let cfg = cfg.clone();
+        window.on_gfx_bg_brightness_changed(move |brightness| {
+            log::debug!("Background brightness set to {brightness:.2}");
+            let mut cfg = cfg.borrow_mut();
+            cfg.gfx_bg_brightness = brightness;
+            cfg.save();
+        });
+    }
+
     // ── Visualizer renderer: VIZ UI → gfx thread ──────────────────────────
     {
         let viz_renderer_id = viz_renderer_id.clone();

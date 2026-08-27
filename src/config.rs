@@ -47,6 +47,16 @@ pub(crate) const DEFAULT_FPS: i32 = 30;
 pub(crate) const DEFAULT_THEME: i32 = 0;
 /// Default GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
 pub(crate) const DEFAULT_GFX_MODEL: i32 = 0;
+/// Whether the GL underlay's frosted-glass post pass is enabled by default.
+/// Disabling it draws the wireframe model directly (no blur/tint), avoiding
+/// the faint near-black haze the frost pass adds, which can trigger
+/// luminance/dirty-screen artifacts on some OLED panels at very low levels.
+pub(crate) const DEFAULT_GFX_FROST_ENABLED: bool = true;
+/// Default GL underlay background render brightness multiplier.
+pub(crate) const DEFAULT_GFX_BG_BRIGHTNESS: f32 = 1.0;
+/// Minimum / maximum selectable GL underlay background brightness multiplier.
+pub(crate) const MIN_GFX_BG_BRIGHTNESS: f32 = 0.0;
+pub(crate) const MAX_GFX_BG_BRIGHTNESS: f32 = 1.5;
 /// Whether the window starts in fullscreen mode by default.
 pub(crate) const DEFAULT_FULLSCREEN: bool = false;
 /// Default Wi-Fi hotspot backend (0 = NetworkManager | 1 = hostapd).
@@ -167,6 +177,14 @@ struct Cli {
     /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
     #[arg(long, env = "EVA_GFX_MODEL")]
     gfx_model: Option<i32>,
+
+    /// Enable the GL underlay's frosted-glass blur/tint post pass.
+    #[arg(long, env = "EVA_GFX_FROST_ENABLED")]
+    gfx_frost_enabled: Option<bool>,
+
+    /// GL underlay background render brightness multiplier (0.0 - 1.5).
+    #[arg(long, env = "EVA_GFX_BG_BRIGHTNESS")]
+    gfx_bg_brightness: Option<f32>,
 
     /// Display the window in fullscreen mode.
     #[arg(long, env = "EVA_FULLSCREEN")]
@@ -290,6 +308,8 @@ struct FileConfig {
     aa_video_transition_speed: Option<f32>,
     theme: Option<i32>,
     gfx_model: Option<i32>,
+    gfx_frost_enabled: Option<bool>,
+    gfx_bg_brightness: Option<f32>,
     fullscreen: Option<bool>,
     hotspot_backend: Option<i32>,
     hotspot_channel: Option<i32>,
@@ -448,6 +468,10 @@ pub(crate) struct Config {
     pub(crate) theme: i32,
     /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car).
     pub(crate) gfx_model: i32,
+    /// Whether the GL underlay's frosted-glass blur/tint post pass is enabled.
+    pub(crate) gfx_frost_enabled: bool,
+    /// GL underlay background render brightness multiplier.
+    pub(crate) gfx_bg_brightness: f32,
     /// Whether the window is shown in fullscreen mode.
     pub(crate) fullscreen: bool,
     /// Wi-Fi hotspot backend (0 = NetworkManager | 1 = hostapd).
@@ -512,6 +536,14 @@ impl Config {
 
         let theme = cli.theme.or(file.theme).unwrap_or(DEFAULT_THEME);
         let gfx_model = cli.gfx_model.or(file.gfx_model).unwrap_or(DEFAULT_GFX_MODEL);
+        let gfx_frost_enabled = cli
+            .gfx_frost_enabled
+            .or(file.gfx_frost_enabled)
+            .unwrap_or(DEFAULT_GFX_FROST_ENABLED);
+        let gfx_bg_brightness = cli
+            .gfx_bg_brightness
+            .or(file.gfx_bg_brightness)
+            .unwrap_or(DEFAULT_GFX_BG_BRIGHTNESS);
         let fullscreen = cli
             .fullscreen
             .or(file.fullscreen)
@@ -589,6 +621,8 @@ impl Config {
             aa_video_transition_speed,
             theme,
             gfx_model,
+            gfx_frost_enabled,
+            gfx_bg_brightness,
             fullscreen,
             hotspot_backend,
             hotspot_channel,
@@ -622,6 +656,8 @@ impl Config {
             aa_video_transition_speed,
             theme,
             gfx_model,
+            gfx_frost_enabled,
+            gfx_bg_brightness,
             fullscreen,
             hotspot_backend,
             hotspot_channel,
@@ -664,6 +700,8 @@ impl Config {
                 .clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
             theme: theme.max(0),
             gfx_model: gfx_model.clamp(0, 3),
+            gfx_frost_enabled,
+            gfx_bg_brightness: gfx_bg_brightness.clamp(MIN_GFX_BG_BRIGHTNESS, MAX_GFX_BG_BRIGHTNESS),
             fullscreen,
             hotspot_backend: hotspot_backend.clamp(0, 1),
             hotspot_channel: hotspot_channel.max(0),
@@ -694,6 +732,8 @@ impl Config {
             aa_video_transition_speed: Some(self.aa_video_transition_speed),
             theme: Some(self.theme),
             gfx_model: Some(self.gfx_model),
+            gfx_frost_enabled: Some(self.gfx_frost_enabled),
+            gfx_bg_brightness: Some(self.gfx_bg_brightness),
             fullscreen: Some(self.fullscreen),
             hotspot_backend: Some(self.hotspot_backend),
             hotspot_channel: Some(self.hotspot_channel),

@@ -54,6 +54,14 @@ export component SettingsView inherits Rectangle {
     in-out property <int> gfx-model: 0;
     callback gfx-model-changed(int);
 
+    // Enables the GL underlay's frosted-glass blur/tint post pass.
+    in-out property <bool> gfx-frost-enabled: true;
+    callback gfx-frost-enabled-changed(bool);
+
+    // GL underlay background render brightness multiplier (0.0 - 1.5).
+    in-out property <float> gfx-bg-brightness: 1.0;
+    callback gfx-bg-brightness-changed(float);
+
     // Android Auto video start/stop transition: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> aa-video-transition-mode: 1;
     callback aa-video-transition-changed(int);
@@ -272,6 +280,14 @@ export component SettingsView inherits Rectangle {
                     gfx-model <=> root.gfx-model;
                     gfx-model-changed(v) => {
                         root.gfx-model-changed(v);
+                    }
+                    gfx-frost-enabled <=> root.gfx-frost-enabled;
+                    gfx-frost-enabled-changed(on) => {
+                        root.gfx-frost-enabled-changed(on);
+                    }
+                    gfx-bg-brightness <=> root.gfx-bg-brightness;
+                    gfx-bg-brightness-changed(v) => {
+                        root.gfx-bg-brightness-changed(v);
                     }
                     transition-mode <=> root.transition-mode;
                     transition-changed(v) => {

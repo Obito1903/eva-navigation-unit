@@ -67,6 +67,16 @@ export component AppWindow inherits Window {
     in-out property <int> gfx-model: 0;
     callback gfx-model-changed(int);
 
+    // Enables the GL underlay's frosted-glass blur/tint post pass. Disabling
+    // it draws the wireframe model directly (no blur, no near-black haze),
+    // which can avoid luminance/dirty-screen artifacts on some OLED panels.
+    in-out property <bool> gfx-frost-enabled: true;
+    callback gfx-frost-enabled-changed(bool);
+
+    // GL underlay background render brightness multiplier (0.0 - 1.5).
+    in-out property <float> gfx-bg-brightness: 1.0;
+    callback gfx-bg-brightness-changed(float);
+
     // Active color theme: 0 = NERV-HQ | 1 = MATRIX. Drives the global palette.
     // The global `Theme.theme-id` is updated from Rust (startup + on change).
     in-out property <int> theme-id: 0;
@@ -228,6 +238,14 @@ export component AppWindow inherits Window {
                     gfx-model <=> root.gfx-model;
                     gfx-model-changed(v) => {
                         root.gfx-model-changed(v);
+                    }
+                    gfx-frost-enabled <=> root.gfx-frost-enabled;
+                    gfx-frost-enabled-changed(on) => {
+                        root.gfx-frost-enabled-changed(on);
+                    }
+                    gfx-bg-brightness <=> root.gfx-bg-brightness;
+                    gfx-bg-brightness-changed(v) => {
+                        root.gfx-bg-brightness-changed(v);
                     }
                     aa-dpi <=> root.aa-dpi;
                     aa-min-dpi <=> root.aa-min-dpi;

@@ -47,9 +47,8 @@ varying vec2 v_uv;
 
 void main() {
     float px = v_uv.x * u_width;
-    // v_uv.y == 0 is the bottom of the screen (GL NDC convention), but
-    // top_pad/bot_pad below are measured from the visible top/bottom, so flip.
-    float py = (1.0 - v_uv.y) * u_height;
+    // v_uv.y == 0 is the screen bottom (GL NDC convention).
+    float py = v_uv.y * u_height;
 
     // ── Content area ──────────────────────────────────────────────────────
     float cx     = px - u_sidebar;
@@ -57,7 +56,7 @@ void main() {
     float top_pad = 12.0;
     float bot_pad = 56.0;         // room for the HUD control bar
     float area_h  = u_height - top_pad - bot_pad;
-    float y       = py - top_pad; // 0 = top of content, area_h = bottom
+    float y       = py - bot_pad; // 0 = bottom of content (above the HUD), area_h = top
 
     if (cx < 0.0 || cx > cw || y < 0.0 || y > area_h) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -80,10 +79,10 @@ void main() {
     float x_bar = (x_slot - h_half) / (1.0 - h_gap); // 0..1 inside bar body
 
     // ── Segment row ───────────────────────────────────────────────────────
-    // Vertically mirrored: seg 0 = topmost band, seg n_segs-1 = lowest, so
-    // bars grow downward from the top edge of the content area.
+    // seg 0 = bottom band, seg n_segs-1 = topmost, so bars grow upward from
+    // the bottom edge of the content area (standard equalizer look).
     float seg_slot = area_h / u_n_segs;
-    float seg_fi   = y / seg_slot;              // 0.0 = top, n_segs = bottom
+    float seg_fi   = y / seg_slot;              // 0.0 = bottom, n_segs = top
     float seg_i    = floor(seg_fi);
     float y_slot   = fract(seg_fi);             // 0..1 within segment slot
 

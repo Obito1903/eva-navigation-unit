@@ -15,6 +15,16 @@ export component SettingsUiTab inherits Rectangle {
     in-out property <int> gfx-model: 0;
     callback gfx-model-changed(int);
 
+    // Enables the GL underlay's frosted-glass blur/tint post pass.
+    in-out property <bool> gfx-frost-enabled: true;
+    callback gfx-frost-enabled-changed(bool);
+
+    // GL underlay background render brightness multiplier (0.0 - 1.5).
+    in-out property <float> gfx-bg-brightness: 1.0;
+    callback gfx-bg-brightness-changed(float);
+    property <float> min-bg-brightness: 0.0;
+    property <float> max-bg-brightness: 1.5;
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -107,6 +117,63 @@ export component SettingsUiTab inherits Rectangle {
                     current-index <=> root.gfx-model;
                     selected(i) => {
                         root.gfx-model-changed(i);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "FROST EFFECT";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    checked <=> root.gfx-frost-enabled;
+                    toggled(on) => {
+                        root.gfx-frost-enabled-changed(on);
+                    }
+                }
+            }
+
+            // Background render brightness
+            VerticalLayout {
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Text {
+                        text: "BACKGROUND BRIGHTNESS";
+                        color: Theme.text-dim;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: Math.round(root.gfx-bg-brightness * 100) + "%";
+                        color: Theme.text;
+                        font-size: 13px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    height: 32px;
+                    value: (root.gfx-bg-brightness - root.min-bg-brightness) / (root.max-bg-brightness - root.min-bg-brightness);
+                    value-changed(v) => {
+                        root.gfx-bg-brightness = clamp(root.min-bg-brightness + v * (root.max-bg-brightness - root.min-bg-brightness), root.min-bg-brightness, root.max-bg-brightness);
+                        root.gfx-bg-brightness-changed(root.gfx-bg-brightness);
                     }
                 }
             }

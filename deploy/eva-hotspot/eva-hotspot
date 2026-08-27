@@ -91,9 +91,11 @@ write_hostapd_conf() {
     [[ "$channel" == "0" ]] && channel=36
 
     local country="$EVA_HOTSPOT_COUNTRY"
-    if [[ -z "$country" ]]; then
+    if [[ -z "$country" ]] && command -v iw >/dev/null 2>&1; then
         # Parse `iw reg get` -> `country FR: ...`; ignore the world default 00.
-        country="$(iw reg get 2>/dev/null | awk '/^country/ {gsub(":","",$2); print $2; exit}')"
+        # `|| true`: under set -e, a failing pipeline here would otherwise
+        # silently abort the whole script (its stderr is swallowed above).
+        country="$(iw reg get 2>/dev/null | awk '/^country/ {gsub(":","",$2); print $2; exit}' || true)"
         [[ "$country" == "00" ]] && country=""
     fi
 
@@ -135,6 +137,11 @@ write_hostapd_conf() {
 }
 
 cmd_up() {
+    command -v hostapd >/dev/null 2>&1 || {
+        log "error: hostapd not found on PATH; install the hostapd package"
+        exit 127
+    }
+
     local iface
     iface="$(detect_iface)" || { log "no wireless interface found"; exit 1; }
     log "bringing up hotspot '$EVA_HOTSPOT_SSID' on $iface (channel $EVA_HOTSPOT_CHANNEL)"

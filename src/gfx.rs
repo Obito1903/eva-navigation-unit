@@ -103,9 +103,10 @@ void main() {
 const FRAGMENT_SHADER: &str = r"#version 100
 precision mediump float;
 uniform vec3 u_color;
+uniform float u_brightness;
 
 void main() {
-    gl_FragColor = vec4(u_color, 1.0);
+    gl_FragColor = vec4(u_color * u_brightness, 1.0);
 }
 ";
 
@@ -130,6 +131,7 @@ precision mediump float;
 uniform sampler2D u_tex;
 uniform vec2 u_texel;    // 1.0 / framebuffer resolution
 uniform float u_radius;  // blur spread in texels
+uniform float u_brightness;
 varying vec2 v_uv;
 
 void main() {
@@ -152,7 +154,7 @@ void main() {
     vec3 frost_tint = vec3(0.72, 0.80, 0.88);
     vec3 frosted = mix(blurred, frost_tint, luma * 0.35) + frost_tint * 0.04;
 
-    gl_FragColor = vec4(frosted, 1.0);
+    gl_FragColor = vec4(frosted * u_brightness, 1.0);
 }
 ";
 
@@ -173,6 +175,7 @@ struct Underlay {
     u_offset: glow::UniformLocation,
     u_color: glow::UniformLocation,
     u_tilt: glow::UniformLocation,
+    u_brightness: glow::UniformLocation,
     // Frost (fullscreen) pass.
     frost_program: glow::Program,
     quad_vbo: glow::Buffer,
@@ -180,6 +183,7 @@ struct Underlay {
     u_tex: glow::UniformLocation,
     u_texel: glow::UniformLocation,
     u_radius: glow::UniformLocation,
+    u_frost_brightness: glow::UniformLocation,
     // Offscreen target the sphere renders into before being frosted.
     fbo: glow::Framebuffer,
     fbo_tex: glow::Texture,
@@ -204,6 +208,8 @@ struct RenderParams {
     offset_x: f32,
     model: i32,
     enabled: bool,
+    frost_enabled: bool,
+    brightness: f32,
 }
 
 /// Compile + link a vertex/fragment shader pair into a program, panicking with
@@ -274,6 +280,8 @@ impl Underlay {
                 gl.get_uniform_location(program, "u_offset").expect("uniform u_offset");
             let u_color = gl.get_uniform_location(program, "u_color").expect("uniform u_color");
             let u_tilt = gl.get_uniform_location(program, "u_tilt").expect("uniform u_tilt");
+            let u_brightness =
+                gl.get_uniform_location(program, "u_brightness").expect("uniform u_brightness");
 
             // ── Frost program + fullscreen quad ───────────────────────────
             let frost_program =
@@ -293,6 +301,9 @@ impl Underlay {
                 gl.get_uniform_location(frost_program, "u_texel").expect("uniform u_texel");
             let u_radius =
                 gl.get_uniform_location(frost_program, "u_radius").expect("uniform u_radius");
+            let u_frost_brightness = gl
+                .get_uniform_location(frost_program, "u_brightness")
+                .expect("uniform u_brightness");
 
             // ── Offscreen FBO (sized lazily in `render`) ──────────────────
             let fbo = gl.create_framebuffer().expect("create_framebuffer");
@@ -314,12 +325,14 @@ impl Underlay {
                 u_offset,
                 u_color,
                 u_tilt,
+                u_brightness,
                 frost_program,
                 quad_vbo,
                 frost_pos_location,
                 u_tex,
                 u_texel,
                 u_radius,
+                u_frost_brightness,
                 fbo,
                 fbo_tex,
                 fbo_w: 0,
@@ -368,12 +381,17 @@ impl Underlay {
     }}
 
     /// Clear the framebuffer to black and, when `enabled`, render the rotating
-    /// wireframe model into an offscreen target and composite it back through
-    /// the frosted-glass pass. `offset_x` shifts the model horizontally in NDC
-    /// so it can center on the content area instead of the whole window.
-    /// `model` selects which wireframe to draw (0 = sphere, 1 = cube, 2 = car).
+    /// wireframe model. When `frost_enabled`, it is rendered into an offscreen
+    /// target and composited back through the frosted-glass (blur + tint)
+    /// pass; otherwise it is drawn directly to the screen (sharper, and
+    /// avoids the frost pass's faint near-black haze, which can trigger
+    /// luminance/dirty-screen artifacts on some OLED panels). `brightness`
+    /// scales the final output color. `offset_x` shifts the model
+    /// horizontally in NDC so it can center on the content area instead of
+    /// the whole window. `model` selects which wireframe to draw (0 = sphere,
+    /// 1 = cube, 2 = car).
     fn render(&mut self, params: RenderParams) {
-        let RenderParams { width, height, time, color, offset_x, model, enabled } = params;
+        let RenderParams { width, height, time, color, offset_x, model, enabled, frost_enabled, brightness } = params;
         if !enabled {
             let gl = &self.gl;
             unsafe {
@@ -385,14 +403,48 @@ impl Underlay {
             return;
         }
 
-        unsafe { self.ensure_fbo(width, height) };
+        if frost_enabled {
+            unsafe { self.ensure_fbo(width, height) };
+        }
 
         let gl = &self.gl;
         unsafe {
             // Save the framebuffer femtovg is rendering into so we can restore
-            // it after the offscreen sphere pass.
+            // it after the offscreen sphere pass (or draw directly into it,
+            // when the frost pass is skipped).
             let prev_fbo = gl.get_parameter_i32(glow::FRAMEBUFFER_BINDING);
             let prev_fbo = NonZeroU32::new(prev_fbo as u32).map(glow::NativeFramebuffer);
+
+            if !frost_enabled {
+                // ── Sphere → screen, directly (no blur/tint pass) ─────────
+                gl.bind_framebuffer(glow::FRAMEBUFFER, prev_fbo);
+                gl.viewport(0, 0, width as i32, height as i32);
+                gl.disable(glow::DEPTH_TEST);
+                gl.clear_color(0.0, 0.0, 0.0, 1.0);
+                gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+
+                gl.use_program(Some(self.program));
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
+                gl.enable_vertex_attrib_array(self.pos_location);
+                gl.vertex_attrib_pointer_f32(self.pos_location, 3, glow::FLOAT, false, 0, 0);
+                gl.uniform_1_f32(Some(&self.u_time), time);
+                let aspect = if height == 0 { 1.0 } else { width as f32 / height as f32 };
+                gl.uniform_1_f32(Some(&self.u_aspect), aspect);
+                gl.uniform_2_f32(Some(&self.u_offset), offset_x, 0.0);
+                gl.uniform_3_f32(Some(&self.u_color), color.0, color.1, color.2);
+                gl.uniform_1_f32(Some(&self.u_tilt), 1.0);
+                gl.uniform_1_f32(Some(&self.u_brightness), brightness);
+                let (start, count) = self
+                    .models
+                    .get(model.max(0) as usize)
+                    .copied()
+                    .unwrap_or(self.models[0]);
+                gl.draw_arrays(glow::LINES, start, count);
+                gl.disable_vertex_attrib_array(self.pos_location);
+                gl.bind_buffer(glow::ARRAY_BUFFER, None);
+                gl.use_program(None);
+                return;
+            }
 
             // ── Pass 1: sphere → offscreen FBO ────────────────────────────
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(self.fbo));
@@ -418,6 +470,8 @@ impl Underlay {
             gl.uniform_2_f32(Some(&self.u_offset), offset_x, 0.0);
             gl.uniform_3_f32(Some(&self.u_color), color.0, color.1, color.2);
             gl.uniform_1_f32(Some(&self.u_tilt), 1.0);
+            // Brightness is applied once, in the frost pass below.
+            gl.uniform_1_f32(Some(&self.u_brightness), 1.0);
             let (start, count) = self
                 .models
                 .get(model.max(0) as usize)
@@ -439,6 +493,7 @@ impl Underlay {
             let (tw, th) = (width.max(1) as f32, height.max(1) as f32);
             gl.uniform_2_f32(Some(&self.u_texel), 1.0 / tw, 1.0 / th);
             gl.uniform_1_f32(Some(&self.u_radius), 4.0);
+            gl.uniform_1_f32(Some(&self.u_frost_brightness), brightness);
 
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.quad_vbo));
             gl.enable_vertex_attrib_array(self.frost_pos_location);
@@ -519,6 +574,8 @@ impl Underlay {
             gl.uniform_3_f32(Some(&self.u_color), color.0, color.1, color.2);
             // Pure horizontal spin (no X tilt) for the icon.
             gl.uniform_1_f32(Some(&self.u_tilt), 0.0);
+            // Icons are unaffected by the background brightness setting.
+            gl.uniform_1_f32(Some(&self.u_brightness), 1.0);
             // Thicker stroke so the small icon reads clearly. (Driver may
             // clamp wide aliased lines; Mesa typically allows several px.)
             gl.line_width(4.0);
@@ -1156,6 +1213,8 @@ pub(crate) fn install(
                     }
 
                     let enabled = win.get_gfx_bg_enabled();
+                    let frost_enabled = win.get_gfx_frost_enabled();
+                    let brightness = win.get_gfx_bg_brightness();
                     let time = start.elapsed().as_secs_f32();
                     let color = theme_color(&win);
                     let model = win.get_gfx_model();
@@ -1176,6 +1235,8 @@ pub(crate) fn install(
                         offset_x,
                         model,
                         enabled,
+                        frost_enabled,
+                        brightness,
                     });
 
                     // Spinning nav icons. Each icon owns a GL texture handed to

@@ -1,4 +1,3 @@
-import { ScrollView } from "std-widgets.slint";
 import { Theme } from "../theme.slint";
 import { HudPanel } from "../components/hud_panel.slint";
 import { GlowText } from "../components/glow_text.slint";
@@ -331,7 +330,7 @@ export component SettingsView inherits Rectangle {
                     }
                 }
 
-                if root.active-tab == 3 : ScrollView {
+                if root.active-tab == 3 : Flickable {
                     width: 100%;
                     height: 100%;
                     viewport-width: self.width;

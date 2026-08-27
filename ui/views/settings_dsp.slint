@@ -236,7 +236,7 @@ export component SettingsDspTab inherits Rectangle {
 
         bands-layout := HorizontalLayout {
             opacity: root.dsp-connected ? 1.0 : 0.4;
-            spacing: 10px;
+            spacing: 4px;
             padding-top: 4px;
             padding-bottom: 4px;
 
@@ -245,7 +245,7 @@ export component SettingsDspTab inherits Rectangle {
                 spacing: 8px;
 
                 Text {
-                    min-width: 48px;
+                    min-width: 30px;
                     horizontal-stretch: 1;
                     text: Math.round(band.gain * 10) / 10 + "dB";
                     color: Theme.text-mute;
@@ -266,7 +266,7 @@ export component SettingsDspTab inherits Rectangle {
                 }
 
                 Text {
-                    min-width: 48px;
+                    min-width: 30px;
                     horizontal-stretch: 1;
                     text: band.freq >= 1000
                         ? Math.round(band.freq / 100) / 10 + "k"
@@ -276,6 +276,35 @@ export component SettingsDspTab inherits Rectangle {
                     font-weight: 600;
                     horizontal-alignment: center;
                     overflow: clip;
+                }
+
+                // Reset this band's gain back to 0dB.
+                Rectangle {
+                    min-width: 30px;
+                    horizontal-stretch: 1;
+                    height: 26px;
+                    border-width: 1px;
+                    border-color: Theme.red-dim;
+                    border-radius: 3px;
+                    background: reset-area.pressed ? Theme.panel-btn : transparent;
+
+                    Text {
+                        text: "RESET";
+                        color: Theme.text-mute;
+                        font-size: 8px;
+                        font-weight: 700;
+                        letter-spacing: 0.2px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        overflow: clip;
+                    }
+
+                    reset-area := TouchArea {
+                        enabled: root.dsp-connected;
+                        clicked => {
+                            root.eq-band-committed(idx, 0.0);
+                        }
+                    }
                 }
             }
         }

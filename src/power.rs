@@ -41,6 +41,10 @@ trait Login1Manager {
     /// `true` just before suspending, `false` just after resuming.
     #[zbus(signal)]
     fn prepare_for_sleep(&self, start: bool) -> zbus::Result<()>;
+
+    /// Suspend the machine. `interactive` controls whether polkit may prompt;
+    /// always `false` here, since a head unit has nobody to answer it.
+    fn suspend(&self, interactive: bool) -> zbus::Result<()>;
 }
 
 #[proxy(
@@ -102,6 +106,13 @@ pub(crate) enum AaCommand {
     Resume,
 }
 
+/// When to suspend the machine after mains power goes away.
+#[derive(Clone, Copy)]
+pub(crate) struct BatterySuspend {
+    pub(crate) enabled: bool,
+    pub(crate) delay: Duration,
+}
+
 /// Owns the background thread + tokio runtime watching logind and UPower.
 /// Mirrors the shape of [`crate::jamesdsp::JamesDspContainer`].
 pub(crate) struct PowerMonitor {
@@ -115,6 +126,7 @@ impl PowerMonitor {
     pub(crate) fn new(
         bt: tokio::sync::mpsc::Sender<crate::btmedia::Command>,
         aa: tokio::sync::mpsc::Sender<AaCommand>,
+        battery_suspend: BatterySuspend,
     ) -> Self {
         let (kill_tx, kill_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -123,7 +135,7 @@ impl PowerMonitor {
             .build()
             .expect("Failed to build tokio runtime");
 
-        let thread = std::thread::spawn(move || rt.block_on(run(kill_rx, bt, aa)));
+        let thread = std::thread::spawn(move || rt.block_on(run(kill_rx, bt, aa, battery_suspend)));
 
         Self {
             thread: Some(thread),
@@ -151,6 +163,7 @@ async fn run(
     mut kill_rx: tokio::sync::oneshot::Receiver<()>,
     bt: tokio::sync::mpsc::Sender<crate::btmedia::Command>,
     aa: tokio::sync::mpsc::Sender<AaCommand>,
+    battery_suspend: BatterySuspend,
 ) {
     let conn = match Connection::system().await {
         Ok(c) => c,
@@ -209,6 +222,11 @@ async fn run(
         log_snapshot(u, &mut last).await;
     }
 
+    // Armed whenever mains is absent. Evaluated from the current value rather
+    // than only on transitions, so starting up (or resuming) already on battery
+    // still counts down.
+    let mut suspend_at = arm_suspend(battery_suspend, last.on_battery.unwrap_or(false), None);
+
     loop {
         tokio::select! {
             _ = &mut kill_rx => {
@@ -234,18 +252,33 @@ async fn run(
                     if let Some(u) = &upower {
                         log_snapshot(u, &mut last).await;
                     }
+                    // No `OnBattery` change fires if we resumed still on
+                    // battery, so re-arm from the value we just read.
+                    suspend_at =
+                        arm_suspend(battery_suspend, last.on_battery.unwrap_or(false), None);
                 }
             }
 
             Some(changed) = next_or_pending(&mut on_battery_changes) => {
-                if let Ok(on_battery) = changed.get().await
-                    && last.on_battery.replace(on_battery) != Some(on_battery)
-                {
-                    if on_battery {
-                        log::info!("Mains power disconnected — running on battery");
-                    } else {
-                        log::info!("Mains power connected");
+                if let Ok(on_battery) = changed.get().await {
+                    if last.on_battery.replace(on_battery) != Some(on_battery) {
+                        if on_battery {
+                            log::info!("Mains power disconnected — running on battery");
+                        } else {
+                            log::info!("Mains power connected");
+                        }
                     }
+                    suspend_at = arm_suspend(battery_suspend, on_battery, suspend_at);
+                }
+            }
+
+            () = wait_until(suspend_at) => {
+                suspend_at = None;
+                log::info!("On battery for {:?} — suspending", battery_suspend.delay);
+                if let Some(p) = &inhibit_proxy
+                    && let Err(e) = p.suspend(false).await
+                {
+                    log::warn!("Could not suspend: {e}");
                 }
             }
 
@@ -325,6 +358,39 @@ async fn terminate_android_auto(aa: &tokio::sync::mpsc::Sender<AaCommand>) {
         Ok(Ok(())) => log::info!("Android Auto session ended before suspend"),
         Ok(Err(_)) => log::warn!("Android Auto teardown was abandoned"),
         Err(_) => log::warn!("Android Auto teardown timed out; suspending anyway"),
+    }
+}
+
+/// Compute the suspend deadline for the current mains state. Keeps an existing
+/// deadline rather than pushing it back, so repeated `PropertiesChanged` while
+/// on battery cannot postpone the suspend indefinitely.
+fn arm_suspend(
+    policy: BatterySuspend,
+    on_battery: bool,
+    current: Option<tokio::time::Instant>,
+) -> Option<tokio::time::Instant> {
+    if !policy.enabled {
+        return None;
+    }
+    match (on_battery, current) {
+        (false, Some(_)) => {
+            log::info!("Mains power back — cancelling the pending suspend");
+            None
+        }
+        (false, None) => None,
+        (true, Some(at)) => Some(at),
+        (true, None) => {
+            log::info!("On battery — suspending in {:?}", policy.delay);
+            Some(tokio::time::Instant::now() + policy.delay)
+        }
+    }
+}
+
+/// Wait for a deadline, or forever when none is set.
+async fn wait_until(at: Option<tokio::time::Instant>) {
+    match at {
+        Some(at) => tokio::time::sleep_until(at).await,
+        None => std::future::pending().await,
     }
 }
 

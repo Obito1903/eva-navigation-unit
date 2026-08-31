@@ -340,7 +340,14 @@ pub(crate) fn wire(
     #[cfg(feature = "power")]
     let mut restart_at: Option<std::time::Instant> = None;
     #[cfg(feature = "power")]
-    let power_monitor = crate::power::PowerMonitor::new(bt_container.send.clone(), aa_tx);
+    let power_monitor = crate::power::PowerMonitor::new(
+        bt_container.send.clone(),
+        aa_tx,
+        crate::power::BatterySuspend {
+            enabled: cfg.borrow().suspend_on_battery,
+            delay: std::time::Duration::from_millis(cfg.borrow().suspend_on_battery_delay_ms),
+        },
+    );
 
     // ── JamesDSP effects/EQ: Settings UI → JamesDSP D-Bus service ─────────
     // JamesDSP's own D-Bus state is the sole source of truth here: nothing

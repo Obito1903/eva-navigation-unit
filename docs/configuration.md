@@ -63,6 +63,8 @@ CLI flags always take precedence over the config file.
 | `aa_waiting_text` | `--aa-waiting-text` | `EVA_AA_WAITING_TEXT` | `"WAITING FOR ENTRY PLUG"` | Waiting-for-connection text shown on the Android Auto "locked terminal" overlay. |
 | `bt_resume_delay_ms` | `--bt-resume-delay-ms` | `EVA_BT_RESUME_DELAY_MS` | `3000` | How long to wait after resuming from suspend before reconnecting Bluetooth, letting the adapter come back first. Clamped to 60000. Requires the `power` feature; not applied to the reconnect done at startup. |
 | `aa_resume_delay_ms` | `--aa-resume-delay-ms` | `EVA_AA_RESUME_DELAY_MS` | `5000` | How long to wait after resuming from suspend before restarting the Android Auto session, letting USB and the Wi-Fi hotspot come back first. Clamped to 60000. Requires the `power` feature. |
+| `suspend_on_battery` | `--suspend-on-battery` | `EVA_SUSPEND_ON_BATTERY` | `false` | Suspend the machine once it has been on battery for `suspend_on_battery_delay_ms`, i.e. when the car is switched off. Off by default: on a development machine this would suspend the desktop shortly after unplugging the charger. Requires the `power` feature. |
+| `suspend_on_battery_delay_ms` | `--suspend-on-battery-delay-ms` | `EVA_SUSPEND_ON_BATTERY_DELAY_MS` | `40000` | How long mains power must stay absent before suspending. Reconnecting power cancels a pending suspend. Clamped to 5000..=3600000. |
 | `last_bt_device` | — | — | — | Address of the last Bluetooth device seen connecting, reconnected to on startup and on resume. Written by the app; not meant to be hand-edited. |
 
 The version badge on the same overlay always reflects the actual build
@@ -132,6 +134,8 @@ car_name_long = "EVA NAVIGATION UNIT"
 aa_waiting_text = "WAITING FOR ENTRY PLUG"
 bt_resume_delay_ms = 3000
 aa_resume_delay_ms = 5000
+suspend_on_battery = false
+suspend_on_battery_delay_ms = 40000
 
 [log]
 level  = "info"

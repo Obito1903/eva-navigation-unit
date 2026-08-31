@@ -62,6 +62,8 @@ to tailor the experience to whatever screen/SBC you're running it on.
         playback over AVRCP once it is back
   - [x] End the Android Auto session before suspending, and restart it after
         resume
+  - [x] Suspend after a configurable time on battery (opt-in via
+        `suspend_on_battery`), i.e. once the car is switched off
   - Power state is currently logged only — nothing else reacts to it yet
 
 ## Build Prerequisites (Fedora)

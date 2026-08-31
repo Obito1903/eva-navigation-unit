@@ -87,6 +87,13 @@ pub(crate) const MAX_BT_RESUME_DELAY_MS: u64 = 60_000;
 pub(crate) const DEFAULT_AA_RESUME_DELAY_MS: u64 = 5000;
 /// Upper bound for the post-resume Android Auto delay.
 pub(crate) const MAX_AA_RESUME_DELAY_MS: u64 = 60_000;
+/// Default wait on battery before suspending, once enabled.
+pub(crate) const DEFAULT_SUSPEND_ON_BATTERY_DELAY_MS: u64 = 40_000;
+/// Floor for the on-battery suspend delay. Anything shorter risks suspending
+/// again before the machine is usable after a resume.
+pub(crate) const MIN_SUSPEND_ON_BATTERY_DELAY_MS: u64 = 5_000;
+/// Upper bound for the on-battery suspend delay (one hour).
+pub(crate) const MAX_SUSPEND_ON_BATTERY_DELAY_MS: u64 = 3_600_000;
 
 // ── Spectrum visualizer defaults ─────────────────────────────────────────────
 
@@ -233,6 +240,14 @@ struct Cli {
     #[arg(long, env = "EVA_AA_RESUME_DELAY_MS")]
     aa_resume_delay_ms: Option<u64>,
 
+    /// Suspend the machine after running on battery for a while.
+    #[arg(long, env = "EVA_SUSPEND_ON_BATTERY")]
+    suspend_on_battery: Option<bool>,
+
+    /// Delay in ms on battery before suspending.
+    #[arg(long, env = "EVA_SUSPEND_ON_BATTERY_DELAY_MS")]
+    suspend_on_battery_delay_ms: Option<u64>,
+
     /// Number of visualizer frequency bands (4..=64).
     #[arg(long, env = "EVA_VIZ_BANDS")]
     viz_bands: Option<u32>,
@@ -339,6 +354,8 @@ struct FileConfig {
     last_bt_device: Option<String>,
     bt_resume_delay_ms: Option<u64>,
     aa_resume_delay_ms: Option<u64>,
+    suspend_on_battery: Option<bool>,
+    suspend_on_battery_delay_ms: Option<u64>,
     log: Option<LogFileConfig>,
     viz: Option<VizFileConfig>,
 }
@@ -516,6 +533,12 @@ pub(crate) struct Config {
     /// Wait after resuming from suspend before restarting the Android Auto
     /// session.
     pub(crate) aa_resume_delay_ms: u64,
+    /// Whether to suspend the machine after running on battery for
+    /// `suspend_on_battery_delay_ms`. Off by default: on a development machine
+    /// this would suspend the desktop shortly after unplugging the charger.
+    pub(crate) suspend_on_battery: bool,
+    /// How long to stay on battery before suspending.
+    pub(crate) suspend_on_battery_delay_ms: u64,
     /// Logging / debug-pipeline configuration.
     pub(crate) log: LogConfig,
     /// Spectrum visualizer tuning parameters.
@@ -612,6 +635,16 @@ impl Config {
             .or(file.aa_resume_delay_ms)
             .unwrap_or(DEFAULT_AA_RESUME_DELAY_MS);
 
+        let suspend_on_battery = cli
+            .suspend_on_battery
+            .or(file.suspend_on_battery)
+            .unwrap_or(false);
+
+        let suspend_on_battery_delay_ms = cli
+            .suspend_on_battery_delay_ms
+            .or(file.suspend_on_battery_delay_ms)
+            .unwrap_or(DEFAULT_SUSPEND_ON_BATTERY_DELAY_MS);
+
         let file_log = file.log.unwrap_or_default();
         let log = LogConfig {
             level: cli
@@ -672,6 +705,8 @@ impl Config {
             last_bt_device: file.last_bt_device,
             bt_resume_delay_ms,
             aa_resume_delay_ms,
+            suspend_on_battery,
+            suspend_on_battery_delay_ms,
             log,
             viz,
             path,
@@ -710,6 +745,8 @@ impl Config {
             last_bt_device,
             bt_resume_delay_ms,
             aa_resume_delay_ms,
+            suspend_on_battery,
+            suspend_on_battery_delay_ms,
             log,
             viz,
             path,
@@ -757,6 +794,11 @@ impl Config {
             last_bt_device,
             bt_resume_delay_ms: bt_resume_delay_ms.min(MAX_BT_RESUME_DELAY_MS),
             aa_resume_delay_ms: aa_resume_delay_ms.min(MAX_AA_RESUME_DELAY_MS),
+            suspend_on_battery,
+            suspend_on_battery_delay_ms: suspend_on_battery_delay_ms.clamp(
+                MIN_SUSPEND_ON_BATTERY_DELAY_MS,
+                MAX_SUSPEND_ON_BATTERY_DELAY_MS,
+            ),
             log,
             viz,
             path,
@@ -792,6 +834,8 @@ impl Config {
             last_bt_device: self.last_bt_device.clone(),
             bt_resume_delay_ms: Some(self.bt_resume_delay_ms),
             aa_resume_delay_ms: Some(self.aa_resume_delay_ms),
+            suspend_on_battery: Some(self.suspend_on_battery),
+            suspend_on_battery_delay_ms: Some(self.suspend_on_battery_delay_ms),
             log: Some(LogFileConfig {
                 level: Some(self.log.level.clone()),
                 ui: self.log.ui.clone(),

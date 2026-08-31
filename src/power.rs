@@ -96,7 +96,8 @@ pub(crate) struct PowerMonitor {
 }
 
 impl PowerMonitor {
-    pub(crate) fn new() -> Self {
+    /// `bt` is nudged on resume so the last Bluetooth device is reconnected.
+    pub(crate) fn new(bt: tokio::sync::mpsc::Sender<crate::btmedia::Command>) -> Self {
         let (kill_tx, kill_rx) = tokio::sync::oneshot::channel::<()>();
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -104,7 +105,7 @@ impl PowerMonitor {
             .build()
             .expect("Failed to build tokio runtime");
 
-        let thread = std::thread::spawn(move || rt.block_on(run(kill_rx)));
+        let thread = std::thread::spawn(move || rt.block_on(run(kill_rx, bt)));
 
         Self {
             thread: Some(thread),
@@ -128,7 +129,10 @@ impl Drop for PowerMonitor {
     }
 }
 
-async fn run(mut kill_rx: tokio::sync::oneshot::Receiver<()>) {
+async fn run(
+    mut kill_rx: tokio::sync::oneshot::Receiver<()>,
+    bt: tokio::sync::mpsc::Sender<crate::btmedia::Command>,
+) {
     let conn = match Connection::system().await {
         Ok(c) => c,
         Err(e) => {
@@ -204,6 +208,7 @@ async fn run(mut kill_rx: tokio::sync::oneshot::Receiver<()>) {
                     if let Some(p) = &inhibit_proxy {
                         inhibitor = take_delay_lock(p).await;
                     }
+                    let _ = bt.send(crate::btmedia::Command::Reconnect).await;
                     // Power state almost certainly moved while we were asleep.
                     if let Some(u) = &upower {
                         log_snapshot(u, &mut last).await;

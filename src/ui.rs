@@ -2,6 +2,8 @@
 //! spawns the video decoder, and pumps worker → UI messages on a timer.
 
 use crate::container::{AndroidAutoContainer, VideoSettings};
+#[cfg(feature = "power")]
+use crate::btmedia::{BtMediaContainer, Event as BtEvent};
 #[cfg(feature = "jamesdsp")]
 use crate::jamesdsp::{Command as DspCommand, Effect as DspEffect, Event as DspEvent, JamesDspContainer};
 use crate::messages::{MessageFromAsync, MessageToAsync, VideoCommand};
@@ -323,6 +325,14 @@ pub(crate) fn wire(
         });
     }
 
+    // ── Bluetooth reconnect + power monitoring ────────────────────────────
+    // The worker cannot persist the remembered device itself (`Config` is not
+    // `Send`), so it reports connections back here instead.
+    #[cfg(feature = "power")]
+    let mut bt_container = BtMediaContainer::new(cfg.borrow().last_bt_device.clone());
+    #[cfg(feature = "power")]
+    let power_monitor = crate::power::PowerMonitor::new(bt_container.send.clone());
+
     // ── JamesDSP effects/EQ: Settings UI → JamesDSP D-Bus service ─────────
     // JamesDSP's own D-Bus state is the sole source of truth here: nothing
     // is cached/persisted locally, and the tab greys out (via `dsp-connected`)
@@ -553,6 +563,23 @@ pub(crate) fn wire(
             }
         });
         std::mem::forget(dsp_timer);
+    }
+
+    // ── Persist the last Bluetooth device the worker saw connect ──────────
+    #[cfg(feature = "power")]
+    {
+        let cfg = cfg.clone();
+        let bt_timer = slint::Timer::default();
+        bt_timer.start(slint::TimerMode::Repeated, POLL_INTERVAL, move || {
+            // Captured so both workers live as long as the event loop.
+            let _power = &power_monitor;
+            while let Ok(BtEvent::LastDeviceChanged(address)) = bt_container.recv.try_recv() {
+                let mut cfg = cfg.borrow_mut();
+                cfg.last_bt_device = Some(address);
+                cfg.save();
+            }
+        });
+        std::mem::forget(bt_timer);
     }
 }
 

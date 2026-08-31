@@ -317,6 +317,7 @@ struct FileConfig {
     app_name: Option<String>,
     car_name_long: Option<String>,
     aa_waiting_text: Option<String>,
+    last_bt_device: Option<String>,
     log: Option<LogFileConfig>,
     viz: Option<VizFileConfig>,
 }
@@ -486,6 +487,9 @@ pub(crate) struct Config {
     pub(crate) car_name_long: String,
     /// Android Auto "locked terminal" overlay waiting-for-connection text.
     pub(crate) aa_waiting_text: String,
+    /// Address of the last Bluetooth device seen connecting, reconnected to on
+    /// startup and on resume. Written by the app, not meant to be hand-edited.
+    pub(crate) last_bt_device: Option<String>,
     /// Logging / debug-pipeline configuration.
     pub(crate) log: LogConfig,
     /// Spectrum visualizer tuning parameters.
@@ -630,6 +634,7 @@ impl Config {
             app_name,
             car_name_long,
             aa_waiting_text,
+            last_bt_device: file.last_bt_device,
             log,
             viz,
             path,
@@ -665,6 +670,7 @@ impl Config {
             app_name,
             car_name_long,
             aa_waiting_text,
+            last_bt_device,
             log,
             viz,
             path,
@@ -709,6 +715,7 @@ impl Config {
             app_name,
             car_name_long,
             aa_waiting_text,
+            last_bt_device,
             log,
             viz,
             path,
@@ -741,6 +748,7 @@ impl Config {
             app_name: Some(self.app_name.clone()),
             car_name_long: Some(self.car_name_long.clone()),
             aa_waiting_text: Some(self.aa_waiting_text.clone()),
+            last_bt_device: self.last_bt_device.clone(),
             log: Some(LogFileConfig {
                 level: Some(self.log.level.clone()),
                 ui: self.log.ui.clone(),

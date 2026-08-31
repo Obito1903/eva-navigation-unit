@@ -55,6 +55,10 @@ to tailor the experience to whatever screen/SBC you're running it on.
   - Show OBD2 engine faults
 - [ ] Controller/GPIO input for integration with native car headunit buttons
 - [ ] Multi-point touch input for AA
+- [ ] System power awareness (opt-in `power` cargo feature)
+  - [x] Detect suspend/resume via systemd-logind
+  - [x] Detect charging/discharging, mains presence and battery level via UPower
+  - Currently logs only — nothing reacts to these events yet
 
 ## Build Prerequisites (Fedora)
 
@@ -75,6 +79,9 @@ sudo dnf install \
 
 # Runtime dependencies
 sudo dnf install bluez NetworkManager pipewire-pulseaudio
+
+# Only needed for the optional `power` feature
+sudo dnf install upower
 ```
 
 | Group | Packages | Required by |
@@ -89,11 +96,18 @@ sudo dnf install bluez NetworkManager pipewire-pulseaudio
 | Runtime | bluez | Bluetooth (wireless transport) |
 | Runtime | NetworkManager | Wi-Fi hotspot |
 | Runtime | pipewire-pulseaudio (or pulseaudio) | Audio capture for the spectrum analyzer/visualizer |
+| Runtime (optional) | upower | Power-supply state for the `power` feature |
 
 ## Build
 
 ```sh
 cargo build --release
+```
+
+System power monitoring is off by default; enable it with:
+
+```sh
+cargo build --release --features power
 ```
 
 ## Installing the Wi-Fi hotspot service (for Android Auto wireless)

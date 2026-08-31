@@ -31,6 +31,8 @@ mod logging;
 mod messages;
 #[cfg(feature = "networkmanager-hotspot")]
 mod nmrs_extensions;
+#[cfg(feature = "power")]
+mod power;
 mod protocol;
 mod spectrum;
 mod ui;
@@ -46,6 +48,8 @@ slint::include_modules!();
 fn main() -> Result<(), slint::PlatformError> {
     let cfg = config::Config::load();
     let _log_guards = logging::init(&cfg);
+    #[cfg(feature = "power")]
+    let _power = power::PowerMonitor::new();
     log::info!(
         "eva-navigation-unit v{} starting — wireless={}, usb={}",
         env!("CARGO_PKG_VERSION"),

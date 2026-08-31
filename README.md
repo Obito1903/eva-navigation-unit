@@ -60,6 +60,8 @@ to tailor the experience to whatever screen/SBC you're running it on.
   - [x] Detect charging/discharging, mains presence and battery level via UPower
   - [x] Reconnect the last Bluetooth device on startup and on resume, and start
         playback over AVRCP once it is back
+  - [x] End the Android Auto session before suspending, and restart it after
+        resume
   - Power state is currently logged only — nothing else reacts to it yet
 
 ## Build Prerequisites (Fedora)

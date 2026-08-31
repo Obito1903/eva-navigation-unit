@@ -283,6 +283,15 @@ impl AndroidAutoContainer {
             kill: Some(kill.0),
         }
     }
+
+    /// Stop the worker and hand back its join handle so the caller can wait for
+    /// teardown to actually finish — unlike `Drop`, which reclaims the thread in
+    /// the background and cannot report completion.
+    #[cfg(feature = "power")]
+    pub(crate) fn shutdown(mut self) -> Option<std::thread::JoinHandle<Result<(), String>>> {
+        let _ = self.kill.take().map(|s| s.send(()));
+        self.thread.take()
+    }
 }
 
 impl Drop for AndroidAutoContainer {

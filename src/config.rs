@@ -82,6 +82,11 @@ pub(crate) const DEFAULT_BT_RESUME_DELAY_MS: u64 = 3000;
 /// Upper bound for the post-resume Bluetooth delay, so a typo cannot silently
 /// disable reconnection for minutes.
 pub(crate) const MAX_BT_RESUME_DELAY_MS: u64 = 60_000;
+/// Default wait after resuming from suspend before restarting the Android Auto
+/// session, giving USB and the Wi-Fi hotspot time to come back first.
+pub(crate) const DEFAULT_AA_RESUME_DELAY_MS: u64 = 5000;
+/// Upper bound for the post-resume Android Auto delay.
+pub(crate) const MAX_AA_RESUME_DELAY_MS: u64 = 60_000;
 
 // ── Spectrum visualizer defaults ─────────────────────────────────────────────
 
@@ -224,6 +229,10 @@ struct Cli {
     #[arg(long, env = "EVA_BT_RESUME_DELAY_MS")]
     bt_resume_delay_ms: Option<u64>,
 
+    /// Delay in ms after resuming from suspend before restarting Android Auto.
+    #[arg(long, env = "EVA_AA_RESUME_DELAY_MS")]
+    aa_resume_delay_ms: Option<u64>,
+
     /// Number of visualizer frequency bands (4..=64).
     #[arg(long, env = "EVA_VIZ_BANDS")]
     viz_bands: Option<u32>,
@@ -329,6 +338,7 @@ struct FileConfig {
     aa_waiting_text: Option<String>,
     last_bt_device: Option<String>,
     bt_resume_delay_ms: Option<u64>,
+    aa_resume_delay_ms: Option<u64>,
     log: Option<LogFileConfig>,
     viz: Option<VizFileConfig>,
 }
@@ -503,6 +513,9 @@ pub(crate) struct Config {
     pub(crate) last_bt_device: Option<String>,
     /// Delay after resuming from suspend before reconnecting Bluetooth, in ms.
     pub(crate) bt_resume_delay_ms: u64,
+    /// Wait after resuming from suspend before restarting the Android Auto
+    /// session.
+    pub(crate) aa_resume_delay_ms: u64,
     /// Logging / debug-pipeline configuration.
     pub(crate) log: LogConfig,
     /// Spectrum visualizer tuning parameters.
@@ -594,6 +607,11 @@ impl Config {
             .or(file.bt_resume_delay_ms)
             .unwrap_or(DEFAULT_BT_RESUME_DELAY_MS);
 
+        let aa_resume_delay_ms = cli
+            .aa_resume_delay_ms
+            .or(file.aa_resume_delay_ms)
+            .unwrap_or(DEFAULT_AA_RESUME_DELAY_MS);
+
         let file_log = file.log.unwrap_or_default();
         let log = LogConfig {
             level: cli
@@ -653,6 +671,7 @@ impl Config {
             aa_waiting_text,
             last_bt_device: file.last_bt_device,
             bt_resume_delay_ms,
+            aa_resume_delay_ms,
             log,
             viz,
             path,
@@ -690,6 +709,7 @@ impl Config {
             aa_waiting_text,
             last_bt_device,
             bt_resume_delay_ms,
+            aa_resume_delay_ms,
             log,
             viz,
             path,
@@ -736,6 +756,7 @@ impl Config {
             aa_waiting_text,
             last_bt_device,
             bt_resume_delay_ms: bt_resume_delay_ms.min(MAX_BT_RESUME_DELAY_MS),
+            aa_resume_delay_ms: aa_resume_delay_ms.min(MAX_AA_RESUME_DELAY_MS),
             log,
             viz,
             path,
@@ -770,6 +791,7 @@ impl Config {
             aa_waiting_text: Some(self.aa_waiting_text.clone()),
             last_bt_device: self.last_bt_device.clone(),
             bt_resume_delay_ms: Some(self.bt_resume_delay_ms),
+            aa_resume_delay_ms: Some(self.aa_resume_delay_ms),
             log: Some(LogFileConfig {
                 level: Some(self.log.level.clone()),
                 ui: self.log.ui.clone(),

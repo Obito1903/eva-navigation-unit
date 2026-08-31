@@ -17,6 +17,8 @@
 //! H.264 decoder, the USB accessory) are still left to fail and recover through
 //! the existing `ExitContainer` restart path.
 
+use std::time::Duration;
+
 use futures_util::StreamExt;
 use zbus::{Connection, proxy};
 
@@ -87,17 +89,33 @@ struct LastLogged {
     percent: Option<i64>,
 }
 
+/// How long to wait for the Android Auto session to tear down before letting
+/// the machine suspend anyway. Must stay under logind's `InhibitDelayMaxSec`
+/// (5s by default) or logind stops waiting for us regardless.
+const TEARDOWN_TIMEOUT: Duration = Duration::from_secs(4);
+
+/// Sent to the UI thread, which owns the Android Auto container.
+pub(crate) enum AaCommand {
+    /// Tear the session down; the ack fires once the worker thread has joined.
+    Suspend(tokio::sync::oneshot::Sender<()>),
+    /// Bring the session back (after the configured delay).
+    Resume,
+}
+
 /// Owns the background thread + tokio runtime watching logind and UPower.
-/// Mirrors the shape of [`crate::jamesdsp::JamesDspContainer`], minus the
-/// channels — nothing consumes these events yet, so the worker logs directly.
+/// Mirrors the shape of [`crate::jamesdsp::JamesDspContainer`].
 pub(crate) struct PowerMonitor {
     thread: Option<std::thread::JoinHandle<()>>,
     kill: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 impl PowerMonitor {
-    /// `bt` is nudged on resume so the last Bluetooth device is reconnected.
-    pub(crate) fn new(bt: tokio::sync::mpsc::Sender<crate::btmedia::Command>) -> Self {
+    /// `bt` is nudged on resume so the last Bluetooth device is reconnected;
+    /// `aa` drives the Android Auto teardown and restart.
+    pub(crate) fn new(
+        bt: tokio::sync::mpsc::Sender<crate::btmedia::Command>,
+        aa: tokio::sync::mpsc::Sender<AaCommand>,
+    ) -> Self {
         let (kill_tx, kill_rx) = tokio::sync::oneshot::channel::<()>();
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -105,7 +123,7 @@ impl PowerMonitor {
             .build()
             .expect("Failed to build tokio runtime");
 
-        let thread = std::thread::spawn(move || rt.block_on(run(kill_rx, bt)));
+        let thread = std::thread::spawn(move || rt.block_on(run(kill_rx, bt, aa)));
 
         Self {
             thread: Some(thread),
@@ -132,6 +150,7 @@ impl Drop for PowerMonitor {
 async fn run(
     mut kill_rx: tokio::sync::oneshot::Receiver<()>,
     bt: tokio::sync::mpsc::Sender<crate::btmedia::Command>,
+    aa: tokio::sync::mpsc::Sender<AaCommand>,
 ) {
     let conn = match Connection::system().await {
         Ok(c) => c,
@@ -201,6 +220,7 @@ async fn run(
                 let Ok(args) = signal.args() else { continue };
                 if *args.start() {
                     log::info!("System is suspending");
+                    terminate_android_auto(&aa).await;
                     // Release the delay lock so logind can actually suspend.
                     drop(inhibitor.take());
                 } else {
@@ -209,6 +229,7 @@ async fn run(
                         inhibitor = take_delay_lock(p).await;
                     }
                     let _ = bt.send(crate::btmedia::Command::Reconnect).await;
+                    let _ = aa.send(AaCommand::Resume).await;
                     // Power state almost certainly moved while we were asleep.
                     if let Some(u) = &upower {
                         log_snapshot(u, &mut last).await;
@@ -290,6 +311,21 @@ async fn connect_upower(conn: &Connection) -> Option<UPowerState> {
     }
 
     Some(UPowerState { manager, device })
+}
+
+/// Ask the UI thread to end the Android Auto session and wait for it, so the
+/// phone, USB and the hotspot are released before the machine goes down.
+async fn terminate_android_auto(aa: &tokio::sync::mpsc::Sender<AaCommand>) {
+    let (ack_tx, ack_rx) = tokio::sync::oneshot::channel();
+    if aa.send(AaCommand::Suspend(ack_tx)).await.is_err() {
+        log::warn!("Could not reach the UI thread to end the Android Auto session");
+        return;
+    }
+    match tokio::time::timeout(TEARDOWN_TIMEOUT, ack_rx).await {
+        Ok(Ok(())) => log::info!("Android Auto session ended before suspend"),
+        Ok(Err(_)) => log::warn!("Android Auto teardown was abandoned"),
+        Err(_) => log::warn!("Android Auto teardown timed out; suspending anyway"),
+    }
 }
 
 /// Take a logind *delay* inhibitor so `PrepareForSleep(true)` arrives with a

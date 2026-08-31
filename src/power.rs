@@ -227,6 +227,25 @@ async fn run(
     // still counts down.
     let mut suspend_at = arm_suspend(battery_suspend, last.on_battery.unwrap_or(false), None);
 
+    // Say what actually came up: without this, a build with the feature missing
+    // and a build whose UPower found no battery look identical in the log.
+    log::info!(
+        "Power monitor: suspend/resume {}, power supply {}, suspend-on-battery {}",
+        if sleep_signals.is_some() { "watched" } else { "UNAVAILABLE" },
+        if upower.is_some() { "watched" } else { "UNAVAILABLE" },
+        if battery_suspend.enabled {
+            format!("after {:?}", battery_suspend.delay)
+        } else {
+            "disabled".to_string()
+        }
+    );
+    if battery_suspend.enabled && upower.is_none() {
+        log::warn!(
+            "suspend_on_battery is enabled but no power-supply source is available \
+             — the machine will never suspend on battery"
+        );
+    }
+
     loop {
         tokio::select! {
             _ = &mut kill_rx => {

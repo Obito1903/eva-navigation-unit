@@ -20,6 +20,8 @@
 //! features (see Cargo.toml).
 
 mod audio;
+#[cfg(feature = "power")]
+mod btmedia;
 mod config;
 mod container;
 mod controls;
@@ -31,6 +33,8 @@ mod logging;
 mod messages;
 #[cfg(feature = "networkmanager-hotspot")]
 mod nmrs_extensions;
+#[cfg(feature = "power")]
+mod power;
 mod protocol;
 mod spectrum;
 mod ui;

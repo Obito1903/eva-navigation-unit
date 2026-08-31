@@ -76,6 +76,17 @@ pub(crate) const DEFAULT_APP_NAME: &str = "EVA NAVIGATION UNIT ";
 pub(crate) const DEFAULT_CAR_NAME_LONG: &str = "EVA-02";
 /// Default Android Auto "locked terminal" overlay waiting-for-connection text.
 pub(crate) const DEFAULT_AA_WAITING_TEXT: &str = "WAITING FOR ENTRY PLUG";
+/// Default wait after resuming from suspend before reconnecting Bluetooth.
+/// The adapter is usually still coming back for the first couple of seconds.
+pub(crate) const DEFAULT_BT_RESUME_DELAY_MS: u64 = 3000;
+/// Upper bound for the post-resume Bluetooth delay, so a typo cannot silently
+/// disable reconnection for minutes.
+pub(crate) const MAX_BT_RESUME_DELAY_MS: u64 = 60_000;
+/// Default wait after resuming from suspend before restarting the Android Auto
+/// session, giving USB and the Wi-Fi hotspot time to come back first.
+pub(crate) const DEFAULT_AA_RESUME_DELAY_MS: u64 = 5000;
+/// Upper bound for the post-resume Android Auto delay.
+pub(crate) const MAX_AA_RESUME_DELAY_MS: u64 = 60_000;
 
 // ── Spectrum visualizer defaults ─────────────────────────────────────────────
 
@@ -214,6 +225,14 @@ struct Cli {
     #[arg(long, env = "EVA_AA_WAITING_TEXT")]
     aa_waiting_text: Option<String>,
 
+    /// Delay in ms after resuming from suspend before reconnecting Bluetooth.
+    #[arg(long, env = "EVA_BT_RESUME_DELAY_MS")]
+    bt_resume_delay_ms: Option<u64>,
+
+    /// Delay in ms after resuming from suspend before restarting Android Auto.
+    #[arg(long, env = "EVA_AA_RESUME_DELAY_MS")]
+    aa_resume_delay_ms: Option<u64>,
+
     /// Number of visualizer frequency bands (4..=64).
     #[arg(long, env = "EVA_VIZ_BANDS")]
     viz_bands: Option<u32>,
@@ -317,6 +336,9 @@ struct FileConfig {
     app_name: Option<String>,
     car_name_long: Option<String>,
     aa_waiting_text: Option<String>,
+    last_bt_device: Option<String>,
+    bt_resume_delay_ms: Option<u64>,
+    aa_resume_delay_ms: Option<u64>,
     log: Option<LogFileConfig>,
     viz: Option<VizFileConfig>,
 }
@@ -486,6 +508,14 @@ pub(crate) struct Config {
     pub(crate) car_name_long: String,
     /// Android Auto "locked terminal" overlay waiting-for-connection text.
     pub(crate) aa_waiting_text: String,
+    /// Address of the last Bluetooth device seen connecting, reconnected to on
+    /// startup and on resume. Written by the app, not meant to be hand-edited.
+    pub(crate) last_bt_device: Option<String>,
+    /// Delay after resuming from suspend before reconnecting Bluetooth, in ms.
+    pub(crate) bt_resume_delay_ms: u64,
+    /// Wait after resuming from suspend before restarting the Android Auto
+    /// session.
+    pub(crate) aa_resume_delay_ms: u64,
     /// Logging / debug-pipeline configuration.
     pub(crate) log: LogConfig,
     /// Spectrum visualizer tuning parameters.
@@ -572,6 +602,15 @@ impl Config {
             .aa_waiting_text
             .or(file.aa_waiting_text)
             .unwrap_or_else(|| DEFAULT_AA_WAITING_TEXT.to_string());
+        let bt_resume_delay_ms = cli
+            .bt_resume_delay_ms
+            .or(file.bt_resume_delay_ms)
+            .unwrap_or(DEFAULT_BT_RESUME_DELAY_MS);
+
+        let aa_resume_delay_ms = cli
+            .aa_resume_delay_ms
+            .or(file.aa_resume_delay_ms)
+            .unwrap_or(DEFAULT_AA_RESUME_DELAY_MS);
 
         let file_log = file.log.unwrap_or_default();
         let log = LogConfig {
@@ -630,6 +669,9 @@ impl Config {
             app_name,
             car_name_long,
             aa_waiting_text,
+            last_bt_device: file.last_bt_device,
+            bt_resume_delay_ms,
+            aa_resume_delay_ms,
             log,
             viz,
             path,
@@ -665,6 +707,9 @@ impl Config {
             app_name,
             car_name_long,
             aa_waiting_text,
+            last_bt_device,
+            bt_resume_delay_ms,
+            aa_resume_delay_ms,
             log,
             viz,
             path,
@@ -709,6 +754,9 @@ impl Config {
             app_name,
             car_name_long,
             aa_waiting_text,
+            last_bt_device,
+            bt_resume_delay_ms: bt_resume_delay_ms.min(MAX_BT_RESUME_DELAY_MS),
+            aa_resume_delay_ms: aa_resume_delay_ms.min(MAX_AA_RESUME_DELAY_MS),
             log,
             viz,
             path,
@@ -741,6 +789,9 @@ impl Config {
             app_name: Some(self.app_name.clone()),
             car_name_long: Some(self.car_name_long.clone()),
             aa_waiting_text: Some(self.aa_waiting_text.clone()),
+            last_bt_device: self.last_bt_device.clone(),
+            bt_resume_delay_ms: Some(self.bt_resume_delay_ms),
+            aa_resume_delay_ms: Some(self.aa_resume_delay_ms),
             log: Some(LogFileConfig {
                 level: Some(self.log.level.clone()),
                 ui: self.log.ui.clone(),

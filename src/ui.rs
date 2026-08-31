@@ -2,6 +2,8 @@
 //! spawns the video decoder, and pumps worker → UI messages on a timer.
 
 use crate::container::{AndroidAutoContainer, VideoSettings};
+#[cfg(feature = "power")]
+use crate::btmedia::{BtMediaContainer, Event as BtEvent};
 #[cfg(feature = "jamesdsp")]
 use crate::jamesdsp::{Command as DspCommand, Effect as DspEffect, Event as DspEvent, JamesDspContainer};
 use crate::messages::{MessageFromAsync, MessageToAsync, VideoCommand};
@@ -323,6 +325,23 @@ pub(crate) fn wire(
         });
     }
 
+    // ── Bluetooth reconnect + power monitoring ────────────────────────────
+    // The worker cannot persist the remembered device itself (`Config` is not
+    // `Send`), so it reports connections back here instead.
+    #[cfg(feature = "power")]
+    let mut bt_container = BtMediaContainer::new(
+        cfg.borrow().last_bt_device.clone(),
+        std::time::Duration::from_millis(cfg.borrow().bt_resume_delay_ms),
+    );
+    #[cfg(feature = "power")]
+    let (aa_tx, mut aa_rx) = tokio::sync::mpsc::channel::<crate::power::AaCommand>(4);
+    #[cfg(feature = "power")]
+    let aa_resume_delay = std::time::Duration::from_millis(cfg.borrow().aa_resume_delay_ms);
+    #[cfg(feature = "power")]
+    let mut restart_at: Option<std::time::Instant> = None;
+    #[cfg(feature = "power")]
+    let power_monitor = crate::power::PowerMonitor::new(bt_container.send.clone(), aa_tx);
+
     // ── JamesDSP effects/EQ: Settings UI → JamesDSP D-Bus service ─────────
     // JamesDSP's own D-Bus state is the sole source of truth here: nothing
     // is cached/persisted locally, and the tab greys out (via `dsp-connected`)
@@ -397,22 +416,39 @@ pub(crate) fn wire(
     }
 
     // ── Start android-auto in background ──────────────────────────────────
-    let mut container = AndroidAutoContainer::new(
-        setup,
-        wireless.clone(),
-        usb.clone(),
-        reset_stale_accessory,
-        video.clone(),
-        hotspot_backend.clone(),
-        hotspot_channel.clone(),
-    );
+    // Rebuilt on disconnect, and torn down/recreated around suspend.
+    let make_container = {
+        let wireless = wireless.clone();
+        let usb = usb.clone();
+        let video = video.clone();
+        let hotspot_backend = hotspot_backend.clone();
+        let hotspot_channel = hotspot_channel.clone();
+        move || {
+            AndroidAutoContainer::new(
+                setup,
+                wireless.clone(),
+                usb.clone(),
+                reset_stale_accessory,
+                video.clone(),
+                hotspot_backend.clone(),
+                hotspot_channel.clone(),
+            )
+        }
+    };
+    let mut container = Some(make_container());
 
     // The worker is torn down and recreated on every disconnect, which makes a
     // fresh message channel each time. Touch input must always target the
     // *current* worker, so keep the sender in a shared cell and refresh it on
     // restart — otherwise touches would silently go to the previous (dead)
     // channel after the first reconnect.
-    let send_touch = Rc::new(RefCell::new(container.send.clone()));
+    let send_touch = Rc::new(RefCell::new(
+        container
+            .as_ref()
+            .expect("container was just created")
+            .send
+            .clone(),
+    ));
 
     // ── Touch events: Slint UI → android-auto ─────────────────────────────
     {
@@ -455,24 +491,65 @@ pub(crate) fn wire(
             return;
         };
 
-        while let Ok(msg) = container.recv.try_recv() {
+        // ── Suspend/resume: end the session, bring it back afterwards ─────
+        #[cfg(feature = "power")]
+        {
+            while let Ok(cmd) = aa_rx.try_recv() {
+                match cmd {
+                    crate::power::AaCommand::Suspend(ack) => {
+                        log::info!("Ending Android Auto session for suspend");
+                        win.set_aa_connected(false);
+                        win.set_aa_video_ready(false);
+                        let _ = video_tx.send(VideoCommand::Flush);
+                        restart_at = None;
+                        match container.take().and_then(|c| c.shutdown()) {
+                            Some(handle) => {
+                                // Join off the UI thread; the ack is what tells
+                                // the power monitor the worker is really gone.
+                                std::thread::spawn(move || {
+                                    if let Err(e) = handle.join() {
+                                        log::warn!("android-auto worker panicked: {e:?}");
+                                    }
+                                    let _ = ack.send(());
+                                });
+                            }
+                            // Nothing to tear down — ack now, or suspend stalls
+                            // for the whole teardown timeout.
+                            None => {
+                                let _ = ack.send(());
+                            }
+                        }
+                    }
+                    crate::power::AaCommand::Resume => {
+                        restart_at = Some(std::time::Instant::now() + aa_resume_delay);
+                    }
+                }
+            }
+
+            if let Some(at) = restart_at
+                && std::time::Instant::now() >= at
+            {
+                restart_at = None;
+                log::info!("Restarting Android Auto after resume");
+                refresh_screen_size(&win, &video);
+                let fresh = make_container();
+                *send_touch.borrow_mut() = fresh.send.clone();
+                container = Some(fresh);
+            }
+        }
+
+        // Borrow per iteration so the `ExitContainer` arm can replace it.
+        while let Some(msg) = container.as_mut().and_then(|c| c.recv.try_recv().ok()) {
             match msg {
                 MessageFromAsync::ExitContainer => {
                     log::info!("Container exited — restarting");
                     // Pick up the latest screen size so the renegotiated stream
                     // matches the current window aspect ratio.
                     refresh_screen_size(&win, &video);
-                    container = AndroidAutoContainer::new(
-                        setup,
-                        wireless.clone(),
-                        usb.clone(),
-                        reset_stale_accessory,
-                        video.clone(),
-                        hotspot_backend.clone(),
-                        hotspot_channel.clone(),
-                    );
+                    let fresh = make_container();
                     // Point touch input at the new worker's channel.
-                    *send_touch.borrow_mut() = container.send.clone();
+                    *send_touch.borrow_mut() = fresh.send.clone();
+                    container = Some(fresh);
                 }
                 MessageFromAsync::Connected => {
                     log::info!("Android Auto connected");
@@ -553,6 +630,23 @@ pub(crate) fn wire(
             }
         });
         std::mem::forget(dsp_timer);
+    }
+
+    // ── Persist the last Bluetooth device the worker saw connect ──────────
+    #[cfg(feature = "power")]
+    {
+        let cfg = cfg.clone();
+        let bt_timer = slint::Timer::default();
+        bt_timer.start(slint::TimerMode::Repeated, POLL_INTERVAL, move || {
+            // Captured so both workers live as long as the event loop.
+            let _power = &power_monitor;
+            while let Ok(BtEvent::LastDeviceChanged(address)) = bt_container.recv.try_recv() {
+                let mut cfg = cfg.borrow_mut();
+                cfg.last_bt_device = Some(address);
+                cfg.save();
+            }
+        });
+        std::mem::forget(bt_timer);
     }
 }
 

@@ -1776,6 +1776,7 @@ dependencies = [
  "clap",
  "console-subscriber",
  "cpal",
+ "futures-util",
  "glow",
  "libpulse-binding",
  "libpulse-simple-binding",

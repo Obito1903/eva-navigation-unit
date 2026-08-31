@@ -38,6 +38,7 @@ tracing-chrome = { version = "0.7", optional = true }
 console-subscriber = { version = "0.4", optional = true }
 zbus = { version = "5", optional = true }
 zvariant = { version = "5", optional = true }
+futures-util = { version = "0.3", optional = true }
 
 [build-dependencies]
 slint-build = "1"
@@ -73,6 +74,13 @@ jamesdsp = ["dep:zbus", "dep:zvariant"]
 # (falls back to USB-only, same as any other hotspot-setup failure); the
 # `hostapd` backend (`hotspot_backend = 1`) is unaffected — it uses no D-Bus.
 networkmanager-hotspot = ["dep:zbus", "dep:zvariant"]
+
+# System power monitoring (src/power.rs): logs suspend/resume from
+# systemd-logind and charge state / mains presence / battery level from
+# UPower. Observation only — nothing reacts to these events yet. Requires the
+# `upower` daemon at runtime; without it the power-supply half logs a warning
+# and suspend/resume detection still works.
+power = ["dep:zbus", "dep:zvariant", "dep:futures-util"]
 
 # Required for the v1 certificate used by android-auto (src/cert.rs).
 # `[patch]` only applies from the crate being built, so it must be duplicated

@@ -61,6 +61,9 @@ CLI flags always take precedence over the config file.
 | `app_name` | `--app-name` | `EVA_APP_NAME` | `"EVA-02"` | App name text shown on the Android Auto "locked terminal" overlay. |
 | `car_name_long` | `--car-name-long` | `EVA_CAR_NAME_LONG` | `"EVA NAVIGATION UNIT"` | Long car name text shown on the Android Auto "locked terminal" overlay. |
 | `aa_waiting_text` | `--aa-waiting-text` | `EVA_AA_WAITING_TEXT` | `"WAITING FOR ENTRY PLUG"` | Waiting-for-connection text shown on the Android Auto "locked terminal" overlay. |
+| `bt_resume_delay_ms` | `--bt-resume-delay-ms` | `EVA_BT_RESUME_DELAY_MS` | `3000` | How long to wait after resuming from suspend before reconnecting Bluetooth, letting the adapter come back first. Clamped to 60000. Requires the `power` feature; not applied to the reconnect done at startup. |
+| `aa_resume_delay_ms` | `--aa-resume-delay-ms` | `EVA_AA_RESUME_DELAY_MS` | `5000` | How long to wait after resuming from suspend before restarting the Android Auto session, letting USB and the Wi-Fi hotspot come back first. Clamped to 60000. Requires the `power` feature. |
+| `last_bt_device` | — | — | — | Address of the last Bluetooth device seen connecting, reconnected to on startup and on resume. Written by the app; not meant to be hand-edited. |
 
 The version badge on the same overlay always reflects the actual build
 version (`CARGO_PKG_VERSION`) and is not configurable.
@@ -127,6 +130,8 @@ car_name_short = "NERV"
 app_name = "EVA-02"
 car_name_long = "EVA NAVIGATION UNIT"
 aa_waiting_text = "WAITING FOR ENTRY PLUG"
+bt_resume_delay_ms = 3000
+aa_resume_delay_ms = 5000
 
 [log]
 level  = "info"

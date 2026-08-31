@@ -15,6 +15,7 @@ use rustfft::{num_complex::Complex, FftPlanner};
 
 use crate::config::VizConfig;
 use crate::spectrum::AudioConsumer;
+use crate::visualizer::model::SpectrumFrame;
 
 pub struct SpectrumProcessor {
     // FFT
@@ -51,12 +52,12 @@ pub struct SpectrumProcessor {
     noise_reduction: f32,
     gravity_scale:   f32,
 
-    // Outputs (read by renderers after each `process()` call)
-    pub bands: Vec<f32>,
-    pub peaks: Vec<f32>,
+    /// Output snapshot, rewritten in place by each `process()` call.
+    frame: SpectrumFrame,
 
     consumer: AudioConsumer,
     last:     Instant,
+    start:    Instant,
 }
 
 impl SpectrumProcessor {
@@ -119,6 +120,7 @@ impl SpectrumProcessor {
             f_upper.powf(0.85) / (8192.0 * fft_log2 * bin_count)
         }).collect();
 
+        let now = Instant::now();
         Self {
             fft,
             fft_buf:  vec![Complex::ZERO; fft_size],
@@ -138,19 +140,26 @@ impl SpectrumProcessor {
             sens_init: true,
             noise_reduction: cfg.noise_reduction,
             gravity_scale:   cfg.gravity,
-            bands: vec![0.0; n_bands],
-            peaks: vec![0.0; n_bands],
+            frame: SpectrumFrame::with_layout(&cut_off),
             prev_raw: vec![0.0; n_bands],
             consumer,
-            last: Instant::now(),
+            last:  now,
+            start: now,
         }
     }
 
+    /// Latest analysis result. Valid after the first [`Self::process`] call.
+    pub fn frame(&self) -> &SpectrumFrame {
+        &self.frame
+    }
+
     /// Run one frame of the CAVA pipeline.  Call once per rendered frame from
-    /// `BeforeRendering`.  Results are in `self.bands` and `self.peaks`.
+    /// `BeforeRendering`.  The result is available from [`Self::frame`].
     pub fn process(&mut self) {
         let dt = self.last.elapsed().as_secs_f32().clamp(1e-4, 0.1);
         self.last = Instant::now();
+        self.frame.dt = dt;
+        self.frame.elapsed = self.start.elapsed().as_secs_f32();
 
         // ── Drain ring buffer, slide analysis window ──────────────────────
         // CAVA drains all pending audio each display frame and slides the
@@ -250,13 +259,16 @@ impl SpectrumProcessor {
             self.cava_mem[n] = final_out; // clamp prevents runaway
 
             if final_out >= 1.0 { overshoot = true; }
-            self.bands[n] = final_out;
+
+            let band = &mut self.frame.bands[n];
+            band.level = final_out;
+            band.raw   = r.clamp(0.0, 1.0);
 
             // Floating dot: instant rise, slow fall.
-            if final_out >= self.peaks[n] {
-                self.peaks[n] = final_out;
+            if final_out >= band.peak {
+                band.peak = final_out;
             } else {
-                self.peaks[n] = (self.peaks[n] * (1.0 - alpha_dot_fall)).max(0.0);
+                band.peak = (band.peak * (1.0 - alpha_dot_fall)).max(0.0);
             }
         }
 

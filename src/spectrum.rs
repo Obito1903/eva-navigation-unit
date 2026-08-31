@@ -6,9 +6,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-/// Maximum configurable band count (fixes GL VBO pre-allocation in renderers).
-pub const BANDS: usize = 64;
-
 /// Ring-buffer consumer — passed to `SpectrumProcessor` on the render thread.
 pub type AudioConsumer = ringbuf::HeapCons<f32>;
 

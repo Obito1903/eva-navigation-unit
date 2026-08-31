@@ -100,6 +100,25 @@ per-component log filtering.
 | `viz.bar_gap` | `--viz-bar-gap` | `EVA_VIZ_BAR_GAP` | `0.08` | Horizontal gap between bar columns, as a fraction of slot width. Clamped to `0.0..=0.45`. |
 | `viz.seg_gap_px` | `--viz-seg-gap-px` | `EVA_VIZ_SEG_GAP_PX` | `2.0` | Vertical gap between segment rows, in pixels. Clamped to `0.0..=20.0`. |
 | `viz.seg_count` | `--viz-seg-count` | `EVA_VIZ_SEG_COUNT` | `50` | Number of discrete vertical VFD segments per bar column. Clamped to `8..=120`. |
+| `viz.scene_dir` | `--viz-scene-dir` | `EVA_VIZ_SCENE_DIR` | `<config dir>/scenes` | Directory to load `*.viz.ron` scene files from (see below). |
+
+`viz.bar_gap`, `viz.seg_gap_px` and `viz.seg_count` only shape the built-in
+fallback scene used when `viz.scene_dir` has no valid `*.viz.ron` files.
+
+### Scene files (`*.viz.ron`)
+
+Each `*.viz.ron` file in `viz.scene_dir` declares one visualizer: its segment
+behaviour (`field`), where segments sit on screen (`layout`), post effects
+(`postfx`), viewport padding (`insets`) and background colour. Colour theming
+(VFD/NERV/MATRIX/NEON) is not part of a scene file — it stays the existing
+runtime selector, applied to whichever scene is active.
+
+Files are hot-reloaded: edit one while the app is running and the change
+appears within about half a second. A file that fails to parse is logged and
+ignored — the previously loaded scene keeps running rather than the display
+going blank. Only `id` is required; every other field defaults sensibly if
+omitted. See [`scenes/vfd_bars.viz.ron`](../scenes/vfd_bars.viz.ron) for a
+fully commented example.
 
 ## Example `config.toml`
 

@@ -1783,6 +1783,7 @@ dependencies = [
  "nmrs",
  "openh264",
  "ringbuf",
+ "ron",
  "rustfft",
  "serde",
  "slint",
@@ -5188,6 +5189,18 @@ dependencies = [
  "crossbeam-utils",
  "portable-atomic",
  "portable-atomic-util",
+]
+
+[[package]]
+name = "ron"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b91f7eff05f748767f183df4320a63d6936e9c6107d97c9e6bdd9784f4289c94"
+dependencies = [
+ "base64 0.21.7",
+ "bitflags 2.13.0",
+ "serde",
+ "serde_derive",
 ]
 
 [[package]]

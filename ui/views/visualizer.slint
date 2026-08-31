@@ -2,13 +2,12 @@ import { Theme } from "../theme.slint";
 
 // Spectrum analyzer visualizer view.
 //
-// The actual spectrum bars are rendered by the OpenGL underlay (gfx.rs /
-// src/visualizer/) and show through the transparent background. This component
-// only contributes the control HUD at the bottom for switching renderer and
-// theme.
+// The scene itself is rendered by the OpenGL underlay (gfx.rs /
+// src/visualizer/) and shows through the transparent background. This component
+// only contributes the control HUD at the bottom for switching scene and theme.
 
 export component VisualizerView inherits Rectangle {
-    // Renderer: 0 = BARS | 1 = ARC
+    // Scene index into `visualizer::scene::builtin_scenes`.
     in-out property <int> viz-renderer: 0;
     callback viz-renderer-changed(int);
 
@@ -43,7 +42,7 @@ export component VisualizerView inherits Rectangle {
 
             // ── Section label ───────────────────────────────────────────
             Text {
-                text: "RENDERER";
+                text: "SCENE";
                 color: Theme.text-mute;
                 font-size: 10px;
                 font-weight: 700;
@@ -51,8 +50,8 @@ export component VisualizerView inherits Rectangle {
                 vertical-alignment: center;
             }
 
-            // ── Renderer selector ───────────────────────────────────────
-            for lbl[idx] in ["BARS", "ARC"]: Rectangle {
+            // ── Scene selector ────────────────────────────────
+            for lbl[idx] in ["BARS"]: Rectangle {
                 property <bool> active: root.viz-renderer == idx;
                 width: 52px;
                 height: 30px;

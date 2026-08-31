@@ -21,6 +21,7 @@ rustfft = "6"
 nmrs = "2.0"
 openh264 = "0.9"
 ringbuf = "0.4"
+ron = "0.8"
 serde = { version = "1", features = ["derive"] }
 slint = "1"
 tokio = { version = "1", features = ["full"] }

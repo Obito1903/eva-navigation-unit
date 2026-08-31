@@ -1130,7 +1130,7 @@ pub(crate) fn install(
     let weak = window.as_weak();
     let start = Instant::now();
     let mut underlay: Option<Underlay> = None;
-    let mut viz_gl: Option<glow::Context> = None;
+    let mut viz_gl: Option<std::rc::Rc<glow::Context>> = None;
     let mut viz_system: Option<VisualizerSystem> = None;
     // consumer is moved into VisualizerSystem on first VIZ view activation.
     let mut viz_consumer: Option<crate::spectrum::AudioConsumer> = Some(consumer);
@@ -1158,7 +1158,7 @@ pub(crate) fn install(
                         let ctx1 = glow::Context::from_loader_function_cstr(|s| get_proc_address(s));
                         let ctx2 = glow::Context::from_loader_function_cstr(|s| get_proc_address(s));
                         underlay = Some(Underlay::new(ctx1));
-                        viz_gl = Some(ctx2);
+                        viz_gl = Some(std::rc::Rc::new(ctx2));
                     },
                     _ => {
                         log::error!("gfx: unexpected graphics API; underlay disabled");
@@ -1178,7 +1178,7 @@ pub(crate) fn install(
                             if viz_system.is_none()
                                 && let Some(consumer) = viz_consumer.take() {
                                     viz_system = Some(VisualizerSystem::new(
-                                        gl,
+                                        gl.clone(),
                                         size.width,
                                         size.height,
                                         consumer,
@@ -1189,7 +1189,7 @@ pub(crate) fn install(
                                 }
                             if let Some(viz) = viz_system.as_mut() {
                                 let t0 = Instant::now();
-                                viz.render_frame(gl, size.width, size.height);
+                                viz.render_frame(size.width, size.height);
                                 let frame_ms = t0.elapsed().as_secs_f32() * 1000.0;
                                 viz_acc_ms += frame_ms;
                                 viz_frame_count += 1;
@@ -1284,8 +1284,8 @@ pub(crate) fn install(
                 }
             }
             RenderingState::RenderingTeardown => {
-                if let (Some(mut viz), Some(gl)) = (viz_system.take(), viz_gl.as_ref()) {
-                    viz.teardown(gl);
+                if let Some(mut viz) = viz_system.take() {
+                    viz.teardown();
                 }
                 viz_gl = None;
                 drop(underlay.take());

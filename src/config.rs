@@ -262,6 +262,11 @@ struct Cli {
     #[arg(long, env = "EVA_VIZ_SEG_COUNT")]
     viz_seg_count: Option<u32>,
 
+    /// Directory to load `*.viz.ron` scene files from. Defaults to a
+    /// `scenes/` directory next to the resolved config file.
+    #[arg(long, env = "EVA_VIZ_SCENE_DIR")]
+    viz_scene_dir: Option<PathBuf>,
+
     /// Global log level (error | warn | info | debug | trace).
     #[arg(long, env = "EVA_LOG_LEVEL")]
     log_level: Option<String>,
@@ -348,6 +353,7 @@ struct VizFileConfig {
     bar_gap: Option<f32>,
     seg_gap_px: Option<f32>,
     seg_count: Option<u32>,
+    scene_dir: Option<PathBuf>,
 }
 
 /// Fully resolved logging / debug-pipeline configuration.
@@ -393,6 +399,8 @@ pub(crate) struct VizConfig {
     pub(crate) seg_gap_px: f32,
     /// Number of discrete vertical VFD segments per bar column.
     pub(crate) seg_count: usize,
+    /// Directory `*.viz.ron` scene files are loaded from.
+    pub(crate) scene_dir: PathBuf,
 }
 
 /// Raw (unclamped) parameters for [`VizConfig::new`], bundled to keep the
@@ -410,6 +418,7 @@ struct VizConfigRaw {
     bar_gap: f32,
     seg_gap_px: f32,
     seg_count: u32,
+    scene_dir: PathBuf,
 }
 
 impl VizConfig {
@@ -420,6 +429,7 @@ impl VizConfig {
             input_attack_ms, input_release_ms,
             gravity, noise_reduction,
             bar_gap, seg_gap_px, seg_count,
+            scene_dir,
         } = raw;
         // Round fft_size down to the nearest power of two within [512, 8192].
         let fft_size_raw = fft_size.clamp(512, 8192) as usize;
@@ -443,6 +453,7 @@ impl VizConfig {
             bar_gap:           bar_gap.clamp(0.0, 0.45),
             seg_gap_px:        seg_gap_px.clamp(0.0, 20.0),
             seg_count:         seg_count.clamp(8, 120) as usize,
+            scene_dir,
         }
     }
 }
@@ -591,6 +602,12 @@ impl Config {
         };
 
         let file_viz = file.viz.unwrap_or_default();
+        // Sibling `scenes/` directory next to the resolved config file, so
+        // the default works both for local dev (repo root) and once installed.
+        let default_scene_dir = path
+            .parent()
+            .map(|p| p.join("scenes"))
+            .unwrap_or_else(|| PathBuf::from("scenes"));
         let viz = VizConfig::new(VizConfigRaw {
             bands: cli.viz_bands.or(file_viz.bands).unwrap_or(DEFAULT_VIZ_BANDS),
             fft_size: cli.viz_fft_size.or(file_viz.fft_size).unwrap_or(DEFAULT_VIZ_FFT_SIZE),
@@ -604,6 +621,7 @@ impl Config {
             bar_gap: cli.viz_bar_gap.or(file_viz.bar_gap).unwrap_or(DEFAULT_VIZ_BAR_GAP),
             seg_gap_px: cli.viz_seg_gap_px.or(file_viz.seg_gap_px).unwrap_or(DEFAULT_VIZ_SEG_GAP_PX),
             seg_count: cli.viz_seg_count.or(file_viz.seg_count).unwrap_or(DEFAULT_VIZ_SEG_COUNT),
+            scene_dir: cli.viz_scene_dir.or(file_viz.scene_dir).unwrap_or(default_scene_dir),
         });
 
         Self::sanitised(Self {
@@ -763,6 +781,7 @@ impl Config {
                 bar_gap: Some(self.viz.bar_gap),
                 seg_gap_px: Some(self.viz.seg_gap_px),
                 seg_count: Some(self.viz.seg_count as u32),
+                scene_dir: Some(self.viz.scene_dir.clone()),
             }),
         };
         match toml::to_string_pretty(&file) {

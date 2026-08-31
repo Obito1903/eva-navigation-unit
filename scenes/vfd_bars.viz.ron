@@ -1,0 +1,47 @@
+// Spectrum visualizer scene definition.
+//
+// Loaded and hot-reloaded from `[viz] scene_dir` (defaults to a `scenes/`
+// folder next to config.toml). Edit this file while the app is running —
+// changes are picked up within ~500ms. If a file fails to parse, the
+// previously loaded scene keeps running and an error is logged; nothing
+// crashes.
+//
+// Only `id` is required — every other field falls back to a sensible
+// default if omitted. Colour is NOT part of a scene: the existing
+// VFD/NERV/MATRIX/NEON theme selector supplies it at runtime.
+(
+    id: "vfd_bars",
+
+    field: (
+        // Segments per bar column.
+        seg_count: 50,
+        // Fade-out trail time constant, in milliseconds. 0 = segments snap
+        // dark instead of trailing off.
+        decay_ms: 0.0,
+        curve: Linear,
+    ),
+
+    layout: Columns(
+        // Horizontal gap between bar columns, as a fraction of slot width.
+        bar_gap: 0.08,
+        // Vertical gap between segment rows, as a fraction of segment height.
+        seg_gap: 0.08,
+        baseline: Bottom,
+    ),
+
+    postfx: (
+        bloom_strength: 1.0,
+        bloom_radius: 2.0,
+        grid: None,
+        scanline: 0.0,
+    ),
+
+    insets: (
+        left: 96.0,
+        right: 4.0,
+        top: 12.0,
+        bottom: 56.0,
+    ),
+
+    background: (0.0, 0.0, 0.0, 1.0),
+)

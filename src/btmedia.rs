@@ -60,7 +60,8 @@ trait MediaPlayer1 {
 
 /// Sent from the UI/power monitor to the worker.
 pub(crate) enum Command {
-    /// Reconnect to the remembered device and resume playback.
+    /// Reconnect to the remembered device and resume playback. Applies the
+    /// configured settling delay first, since the only sender is a resume.
     Reconnect,
 }
 
@@ -82,7 +83,9 @@ pub(crate) struct BtMediaContainer {
 
 impl BtMediaContainer {
     /// `last_device` is the address remembered from a previous run, if any.
-    pub(crate) fn new(last_device: Option<String>) -> Self {
+    /// `resume_delay` lets the Bluetooth stack settle before a post-resume
+    /// reconnect; it is not applied to the startup attempt.
+    pub(crate) fn new(last_device: Option<String>, resume_delay: Duration) -> Self {
         let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<Command>(8);
         let (evt_tx, evt_rx) = tokio::sync::mpsc::channel::<Event>(8);
         let (kill_tx, kill_rx) = tokio::sync::oneshot::channel::<()>();
@@ -92,8 +95,9 @@ impl BtMediaContainer {
             .build()
             .expect("Failed to build tokio runtime");
 
-        let thread =
-            std::thread::spawn(move || rt.block_on(run(kill_rx, cmd_rx, evt_tx, last_device)));
+        let thread = std::thread::spawn(move || {
+            rt.block_on(run(kill_rx, cmd_rx, evt_tx, last_device, resume_delay))
+        });
 
         Self {
             thread: Some(thread),
@@ -124,6 +128,7 @@ async fn run(
     mut cmd_rx: tokio::sync::mpsc::Receiver<Command>,
     evt_tx: tokio::sync::mpsc::Sender<Event>,
     last_device: Option<String>,
+    resume_delay: Duration,
 ) {
     let conn = match Connection::system().await {
         Ok(c) => c,
@@ -147,7 +152,7 @@ async fn run(
     let busy = Arc::new(AtomicBool::new(false));
 
     match &last_device {
-        Some(address) => spawn_reconnect(&conn, address.clone(), &busy),
+        Some(address) => spawn_reconnect(&conn, address.clone(), &busy, Duration::ZERO),
         None => log::debug!("No remembered Bluetooth device to reconnect to"),
     }
 
@@ -160,7 +165,9 @@ async fn run(
 
             Some(Command::Reconnect) = cmd_rx.recv() => {
                 match &last_device {
-                    Some(address) => spawn_reconnect(&conn, address.clone(), &busy),
+                    Some(address) => {
+                        spawn_reconnect(&conn, address.clone(), &busy, resume_delay)
+                    }
                     None => log::debug!("No remembered Bluetooth device to reconnect to"),
                 }
             }
@@ -181,7 +188,7 @@ async fn run(
 
 /// Run a reconnect in the background, unless one is already in flight. This is
 /// also what coalesces an overlapping startup and resume trigger.
-fn spawn_reconnect(conn: &Connection, address: String, busy: &Arc<AtomicBool>) {
+fn spawn_reconnect(conn: &Connection, address: String, busy: &Arc<AtomicBool>, delay: Duration) {
     if busy.swap(true, Ordering::SeqCst) {
         log::debug!("Bluetooth reconnect already in progress — ignoring trigger");
         return;
@@ -189,6 +196,10 @@ fn spawn_reconnect(conn: &Connection, address: String, busy: &Arc<AtomicBool>) {
     let conn = conn.clone();
     let busy = busy.clone();
     tokio::spawn(async move {
+        if !delay.is_zero() {
+            log::debug!("Waiting {}ms before reconnecting Bluetooth", delay.as_millis());
+            tokio::time::sleep(delay).await;
+        }
         reconnect_and_play(&conn, &address).await;
         busy.store(false, Ordering::SeqCst);
     });

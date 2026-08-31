@@ -329,7 +329,10 @@ pub(crate) fn wire(
     // The worker cannot persist the remembered device itself (`Config` is not
     // `Send`), so it reports connections back here instead.
     #[cfg(feature = "power")]
-    let mut bt_container = BtMediaContainer::new(cfg.borrow().last_bt_device.clone());
+    let mut bt_container = BtMediaContainer::new(
+        cfg.borrow().last_bt_device.clone(),
+        std::time::Duration::from_millis(cfg.borrow().bt_resume_delay_ms),
+    );
     #[cfg(feature = "power")]
     let power_monitor = crate::power::PowerMonitor::new(bt_container.send.clone());
 

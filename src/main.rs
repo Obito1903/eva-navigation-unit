@@ -12,6 +12,7 @@
 //!   • [`protocol`]  : the `AndroidAuto` handler + all android-auto trait impls
 //!   • [`container`] : the background worker thread + channel plumbing
 //!   • [`ui`]        : wiring Slint callbacks/timer to the worker
+//!   • [`bevy_gfx`]  : headless Bevy renderer sharing Slint's wgpu device
 //!
 //! Run with:
 //!   cargo run --release
@@ -20,10 +21,10 @@
 //! features (see Cargo.toml).
 
 mod audio;
+mod bevy_gfx;
 mod config;
 mod container;
 mod controls;
-mod gfx;
 mod hostapd;
 #[cfg(feature = "jamesdsp")]
 mod jamesdsp;
@@ -35,12 +36,9 @@ mod protocol;
 mod spectrum;
 mod ui;
 mod video;
-mod visualizer;
 
 use slint::ComponentHandle;
 use slint::Global;
-use std::sync::atomic::AtomicI32;
-use std::sync::Arc;
 
 slint::include_modules!();
 fn main() -> Result<(), slint::PlatformError> {
@@ -61,12 +59,12 @@ fn main() -> Result<(), slint::PlatformError> {
         cfg.max_dpi
     );
 
-    // Require an OpenGL(-ES) renderer so the wireframe-sphere underlay's
-    // rendering notifier (which needs `GraphicsAPI::NativeOpenGL`) always
-    // fires. A silent software-renderer fallback becomes a hard, visible
-    // failure here instead of a missing 3D background.
+    // wgpu must be initialized before the Slint backend is selected so both
+    // renderers end up on one device/queue. Requiring wgpu also turns a silent
+    // software-renderer fallback into a hard, visible failure.
+    let shared_renderer = bevy_gfx::SharedRenderer::new();
     slint::BackendSelector::new()
-        .require_opengl_es()
+        .require_wgpu_29(shared_renderer.slint_configuration())
         .select()?;
 
     let setup = android_auto::setup();
@@ -103,14 +101,12 @@ fn main() -> Result<(), slint::PlatformError> {
     // value, so it can't drift from what was actually built.
     window.set_aa_version_text(env!("CARGO_PKG_VERSION").into());
 
-    // Start audio capture. The consumer is passed directly to gfx::install
-    // which moves it into VisualizerSystem on first VIZ view activation.
-    let viz_cfg = Arc::new(cfg.viz.clone());
+    // Start audio capture. The consumer is passed to bevy_gfx::install, which
+    // moves it into the spectrum processor resource.
+    let viz_cfg = cfg.viz.clone();
     let (_spectrum_capture, consumer) = spectrum::start_capture(&cfg.viz);
-    let viz_renderer_id = Arc::new(AtomicI32::new(0));
-    let viz_theme = Arc::new(AtomicI32::new(0));
 
-    ui::wire(&window, setup, cfg, viz_renderer_id.clone(), viz_theme.clone());
-    gfx::install(&window, consumer, viz_renderer_id, viz_theme, viz_cfg);
+    ui::wire(&window, setup, cfg);
+    bevy_gfx::install(&window, shared_renderer, consumer, viz_cfg);
     window.run()
 }

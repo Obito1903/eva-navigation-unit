@@ -48,8 +48,6 @@ pub(crate) fn wire(
     window: &AppWindow,
     setup: android_auto::AndroidAutoSetup,
     cfg: crate::config::Config,
-    viz_renderer_id: Arc<AtomicI32>,
-    viz_theme: Arc<AtomicI32>,
 ) {
     let window_weak = window.as_weak();
 
@@ -261,7 +259,7 @@ pub(crate) fn wire(
         });
     }
 
-    // ── GL underlay model: Settings UI → config ───────────────────────────
+    // ── Background model: Settings UI → config ───────────────────────────
     {
         let cfg = cfg.clone();
         window.on_gfx_model_changed(move |model| {
@@ -272,7 +270,7 @@ pub(crate) fn wire(
         });
     }
 
-    // ── GL underlay frost effect: Settings UI → config ────────────────────
+    // ── Background frost effect: Settings UI → config ────────────────────
     {
         let cfg = cfg.clone();
         window.on_gfx_frost_enabled_changed(move |enabled| {
@@ -283,7 +281,7 @@ pub(crate) fn wire(
         });
     }
 
-    // ── GL underlay background brightness: Settings UI → config ──────────
+    // ── Background brightness: Settings UI → config ──────────
     {
         let cfg = cfg.clone();
         window.on_gfx_bg_brightness_changed(move |brightness| {
@@ -294,23 +292,11 @@ pub(crate) fn wire(
         });
     }
 
-    // ── Visualizer renderer: VIZ UI → gfx thread ──────────────────────────
-    {
-        let viz_renderer_id = viz_renderer_id.clone();
-        window.on_viz_renderer_changed(move |id| {
-            log::debug!("Visualizer renderer set to {id}");
-            viz_renderer_id.store(id, Ordering::Relaxed);
-        });
-    }
-
-    // ── Visualizer theme: VIZ UI → gfx thread ─────────────────────────────
-    {
-        let viz_theme = viz_theme.clone();
-        window.on_viz_theme_changed(move |id| {
-            log::debug!("Visualizer theme set to {id}");
-            viz_theme.store(id, Ordering::Relaxed);
-        });
-    }
+    // ── Visualizer renderer / theme ───────────────────────────────────────
+    // Only logged here: `bevy_gfx` reads `viz-renderer` / `viz-theme` straight
+    // off the window each frame, so there is nothing to forward.
+    window.on_viz_renderer_changed(|id| log::debug!("Visualizer renderer set to {id}"));
+    window.on_viz_theme_changed(|id| log::debug!("Visualizer theme set to {id}"));
 
     // ── Fullscreen: Settings UI → config ──────────────────────────────────
     {

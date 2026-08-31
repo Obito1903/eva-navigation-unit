@@ -1,10 +1,10 @@
-//! CAVA-style spectrum processor — runs entirely on the render thread.
+//! CAVA-style spectrum processor.
 //!
-//! Called once per frame from `BeforeRendering`. Drains audio samples from the
-//! capture ring buffer, slides the Hann-windowed FFT analysis window forward,
-//! maps FFT bins to bands with CAVA's logarithmic EQ weighting, then applies
-//! gravity fall-off, leaky-integral smoothing, and autosens — all calibrated
-//! to the actual display frame rate.
+//! Runs once per frame from a Bevy system while the visualizer view is active.
+//! Drains audio samples from the capture ring buffer, slides the Hann-windowed
+//! FFT analysis window forward, maps FFT bins to bands with CAVA's logarithmic
+//! EQ weighting, then applies gravity fall-off, leaky-integral smoothing, and
+//! autosens — all calibrated to the actual display frame rate.
 //!
 //! Reference: <https://github.com/karlstav/cava/blob/master/cavacore.c>
 
@@ -146,8 +146,8 @@ impl SpectrumProcessor {
         }
     }
 
-    /// Run one frame of the CAVA pipeline.  Call once per rendered frame from
-    /// `BeforeRendering`.  Results are in `self.bands` and `self.peaks`.
+    /// Run one frame of the CAVA pipeline.  Call once per rendered frame.
+    /// Results are in `self.bands` and `self.peaks`.
     pub fn process(&mut self) {
         let dt = self.last.elapsed().as_secs_f32().clamp(1e-4, 0.1);
         self.last = Instant::now();

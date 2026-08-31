@@ -45,16 +45,16 @@ pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
 pub(crate) const DEFAULT_FPS: i32 = 30;
 /// Default color theme (0 = NERV-HQ | 1 = MATRIX).
 pub(crate) const DEFAULT_THEME: i32 = 0;
-/// Default GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
+/// Default Background wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
 pub(crate) const DEFAULT_GFX_MODEL: i32 = 0;
-/// Whether the GL underlay's frosted-glass post pass is enabled by default.
+/// Whether the background's frosted-glass post pass is enabled by default.
 /// Disabling it draws the wireframe model directly (no blur/tint), avoiding
 /// the faint near-black haze the frost pass adds, which can trigger
 /// luminance/dirty-screen artifacts on some OLED panels at very low levels.
 pub(crate) const DEFAULT_GFX_FROST_ENABLED: bool = true;
-/// Default GL underlay background render brightness multiplier.
+/// Default Background render brightness multiplier.
 pub(crate) const DEFAULT_GFX_BG_BRIGHTNESS: f32 = 1.0;
-/// Minimum / maximum selectable GL underlay background brightness multiplier.
+/// Minimum / maximum selectable Background brightness multiplier.
 pub(crate) const MIN_GFX_BG_BRIGHTNESS: f32 = 0.0;
 pub(crate) const MAX_GFX_BG_BRIGHTNESS: f32 = 1.5;
 /// Whether the window starts in fullscreen mode by default.
@@ -174,15 +174,15 @@ struct Cli {
     #[arg(long, env = "EVA_THEME")]
     theme: Option<i32>,
 
-    /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
+    /// Background wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
     #[arg(long, env = "EVA_GFX_MODEL")]
     gfx_model: Option<i32>,
 
-    /// Enable the GL underlay's frosted-glass blur/tint post pass.
+    /// Enable the background's frosted-glass blur/tint post pass.
     #[arg(long, env = "EVA_GFX_FROST_ENABLED")]
     gfx_frost_enabled: Option<bool>,
 
-    /// GL underlay background render brightness multiplier (0.0 - 1.5).
+    /// Background render brightness multiplier (0.0 - 1.5).
     #[arg(long, env = "EVA_GFX_BG_BRIGHTNESS")]
     gfx_bg_brightness: Option<f32>,
 
@@ -466,11 +466,11 @@ pub(crate) struct Config {
     pub(crate) aa_video_transition_speed: f32,
     /// Active color theme (0 = NERV-HQ | 1 = MATRIX).
     pub(crate) theme: i32,
-    /// GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car).
+    /// Background wireframe model (0 = sphere | 1 = cube | 2 = car).
     pub(crate) gfx_model: i32,
-    /// Whether the GL underlay's frosted-glass blur/tint post pass is enabled.
+    /// Whether the background's frosted-glass blur/tint post pass is enabled.
     pub(crate) gfx_frost_enabled: bool,
-    /// GL underlay background render brightness multiplier.
+    /// Background render brightness multiplier.
     pub(crate) gfx_bg_brightness: f32,
     /// Whether the window is shown in fullscreen mode.
     pub(crate) fullscreen: bool,

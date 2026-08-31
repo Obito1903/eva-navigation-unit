@@ -2,12 +2,14 @@ import { Theme } from "../theme.slint";
 
 // Spectrum analyzer visualizer view.
 //
-// The actual spectrum bars are rendered by the OpenGL underlay (gfx.rs /
-// src/visualizer/) and show through the transparent background. This component
-// only contributes the control HUD at the bottom for switching renderer and
-// theme.
+// The spectrum itself is rendered by Bevy (src/bevy_gfx/visualizer/) into
+// `viz-texture`; this component draws it and adds the control HUD at the bottom
+// for switching renderer and theme.
 
 export component VisualizerView inherits Rectangle {
+    // Spectrum texture rendered by Bevy, sized to this view.
+    in-out property <image> viz-texture;
+
     // Renderer: 0 = BARS | 1 = ARC
     in-out property <int> viz-renderer: 0;
     callback viz-renderer-changed(int);
@@ -16,8 +18,14 @@ export component VisualizerView inherits Rectangle {
     in-out property <int> viz-theme: 0;
     callback viz-theme-changed(int);
 
-    // Transparent so the GL underlay shows through.
     background: transparent;
+
+    Image {
+        width: 100%;
+        height: 100%;
+        source: root.viz-texture;
+        image-fit: fill;
+    }
 
     // ── Bottom HUD control bar ─────────────────────────────────────────────
     Rectangle {

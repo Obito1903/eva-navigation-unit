@@ -4,7 +4,7 @@ import { CapsuleBarSlider } from "../components/capsule_bar_slider.slint";
 
 // Quick controls: system volume + physical screen brightness.
 export component QuickControlsView inherits Rectangle {
-    // Use a faintly opaque background when the GL underlay is on so the
+    // Use a faintly opaque background when the background is on so the
     // wireframe shows through, mirroring the settings view.
     in property <bool> gfx-bg-enabled: false;
     background: root.gfx-bg-enabled ? Theme.bg.with-alpha(0.45) : Theme.bg;

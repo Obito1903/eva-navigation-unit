@@ -10,10 +10,29 @@ android-auto = { git = "https://github.com/Obito1903/android-auto", branch = "a3
     "wireless",
 ] }
 async-trait = "0.1"
+# Headless renderer sharing Slint's wgpu device (see src/bevy_gfx). No window,
+# no winit, no input: bevy only draws into offscreen textures that Slint shows.
+# Must stay on the same wgpu major as slint's `unstable-wgpu-29` (wgpu 29).
+bevy = { version = "0.19", default-features = false, features = [
+    "std",
+    "async_executor",
+    "multi_threaded",
+    "bevy_asset",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_post_process",
+    "bevy_render",
+    "bevy_shader",
+    "bevy_state",
+    "bevy_window",
+    "tonemapping_luts",
+    # `tonemapping_luts` ships its LUTs as zstd-compressed KTX2 and leaves the
+    # backend choice to the app.
+    "zstd_rust",
+] }
 bluetooth-rust = "0.3"
 clap = { version = "4", features = ["derive", "env"] }
 cpal = "0.17"
-glow = "0.17"
 libpulse-binding = "2"
 libpulse-simple-binding = "2"
 log = "0.4"
@@ -22,7 +41,14 @@ nmrs = "2.0"
 openh264 = "0.9"
 ringbuf = "0.4"
 serde = { version = "1", features = ["derive"] }
-slint = "1"
+# Pinned exactly: `unstable-wgpu-29` is an unstable API that can change between
+# minor releases, and src/bevy_gfx depends on it for the shared wgpu device.
+# `unstable-wgpu-29` only exposes the API — `renderer-femtovg-wgpu` is what
+# actually gives Slint a renderer that draws through wgpu.
+slint = { version = "=1.17.1", features = [
+    "renderer-femtovg-wgpu",
+    "unstable-wgpu-29",
+] }
 tokio = { version = "1", features = ["full"] }
 toml = "0.8"
 tracing = "0.1"
@@ -40,7 +66,7 @@ zbus = { version = "5", optional = true }
 zvariant = { version = "5", optional = true }
 
 [build-dependencies]
-slint-build = "1"
+slint-build = "=1.17.1"
 
 # Optimize dependencies even in debug builds. The H.264 → RGB pixel conversion
 # (openh264) is ~80× slower when compiled unoptimized, which made dev builds
@@ -56,6 +82,10 @@ default = ["jamesdsp", "networkmanager-hotspot"]
 # Emit a Chrome/Perfetto trace file (open in https://ui.perfetto.dev). See
 # docs for usage; adds the `tracing-chrome` layer.
 chrome-trace = ["dep:tracing-chrome"]
+
+# Link bevy dynamically. Cuts link time massively for local iteration, but the
+# resulting binary needs libbevy_dylib next to it — never enable for deploys.
+bevy-dynamic = ["bevy/dynamic_linking"]
 
 # Expose a live async task view via `tokio-console`. Requires building with
 # RUSTFLAGS="--cfg tokio_unstable". Adds the `console-subscriber` layer.

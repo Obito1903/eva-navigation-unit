@@ -38,6 +38,8 @@ const PLAYER_POLL: Duration = Duration::from_millis(500);
 trait Device1 {
     fn connect(&self) -> zbus::Result<()>;
 
+    fn disconnect(&self) -> zbus::Result<()>;
+
     #[zbus(property)]
     fn address(&self) -> zbus::Result<String>;
 
@@ -63,6 +65,9 @@ pub(crate) enum Command {
     /// Reconnect to the remembered device and resume playback. Applies the
     /// configured settling delay first, since the only sender is a resume.
     Reconnect,
+    /// Drop every Bluetooth link before the machine suspends. The ack fires
+    /// once the disconnects have been issued.
+    Disconnect(tokio::sync::oneshot::Sender<()>),
 }
 
 /// Sent from the worker to the UI thread.
@@ -150,9 +155,12 @@ async fn run(
     // Reconnects run detached so a phone that is out of range cannot stall the
     // connection tracking for the length of the whole backoff.
     let busy = Arc::new(AtomicBool::new(false));
+    let mut reconnect_task: Option<tokio::task::JoinHandle<()>> = None;
 
     match &last_device {
-        Some(address) => spawn_reconnect(&conn, address.clone(), &busy, Duration::ZERO),
+        Some(address) => {
+            reconnect_task = spawn_reconnect(&conn, address.clone(), &busy, Duration::ZERO)
+        }
         None => log::debug!("No remembered Bluetooth device to reconnect to"),
     }
 
@@ -163,12 +171,25 @@ async fn run(
                 break;
             }
 
-            Some(Command::Reconnect) = cmd_rx.recv() => {
-                match &last_device {
-                    Some(address) => {
-                        spawn_reconnect(&conn, address.clone(), &busy, resume_delay)
+            Some(cmd) = cmd_rx.recv() => {
+                match cmd {
+                    Command::Reconnect => match &last_device {
+                        Some(address) => {
+                            reconnect_task =
+                                spawn_reconnect(&conn, address.clone(), &busy, resume_delay);
+                        }
+                        None => log::debug!("No remembered Bluetooth device to reconnect to"),
+                    },
+                    Command::Disconnect(ack) => {
+                        // A reconnect mid-backoff would happily undo this, so
+                        // stop it before dropping the links.
+                        if let Some(task) = reconnect_task.take() {
+                            task.abort();
+                            busy.store(false, Ordering::SeqCst);
+                        }
+                        disconnect_all(&conn).await;
+                        let _ = ack.send(());
                     }
-                    None => log::debug!("No remembered Bluetooth device to reconnect to"),
                 }
             }
 
@@ -188,21 +209,57 @@ async fn run(
 
 /// Run a reconnect in the background, unless one is already in flight. This is
 /// also what coalesces an overlapping startup and resume trigger.
-fn spawn_reconnect(conn: &Connection, address: String, busy: &Arc<AtomicBool>, delay: Duration) {
+fn spawn_reconnect(
+    conn: &Connection,
+    address: String,
+    busy: &Arc<AtomicBool>,
+    delay: Duration,
+) -> Option<tokio::task::JoinHandle<()>> {
     if busy.swap(true, Ordering::SeqCst) {
         log::debug!("Bluetooth reconnect already in progress — ignoring trigger");
-        return;
+        return None;
     }
     let conn = conn.clone();
     let busy = busy.clone();
-    tokio::spawn(async move {
+    Some(tokio::spawn(async move {
         if !delay.is_zero() {
             log::debug!("Waiting {}ms before reconnecting Bluetooth", delay.as_millis());
             tokio::time::sleep(delay).await;
         }
         reconnect_and_play(&conn, &address).await;
         busy.store(false, Ordering::SeqCst);
-    });
+    }))
+}
+
+/// Drop every Bluetooth link so both controllers tear the connection down
+/// cleanly, instead of the remote device waiting out a supervision timeout
+/// against a host that has gone to sleep.
+async fn disconnect_all(conn: &Connection) {
+    let Some(objects) = managed_objects(conn).await else {
+        return;
+    };
+    for (path, interfaces) in objects {
+        let connected = interfaces.iter().any(|(interface, props)| {
+            interface.as_str() == "org.bluez.Device1"
+                && matches!(
+                    props.get("Connected").map(|v| bool::try_from(v.clone())),
+                    Some(Ok(true))
+                )
+        });
+        if !connected {
+            continue;
+        }
+        let Ok(builder) = Device1Proxy::builder(conn).path(&path) else {
+            continue;
+        };
+        let Ok(device) = builder.build().await else {
+            continue;
+        };
+        match device.disconnect().await {
+            Ok(()) => log::info!("Disconnected Bluetooth device {}", path.as_str()),
+            Err(e) => log::warn!("Could not disconnect {}: {e}", path.as_str()),
+        }
+    }
 }
 
 async fn reconnect_and_play(conn: &Connection, address: &str) {

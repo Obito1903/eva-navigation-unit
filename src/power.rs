@@ -12,10 +12,9 @@
 //! rule (unlike block locks), and logind caps how long they hold suspend off via
 //! `InhibitDelayMaxSec` (5s by default).
 //!
-//! This module only observes and logs. Nothing reacts to suspend yet — the
-//! subsystems that would need tearing down (the hostapd unit, cpal streams, the
-//! H.264 decoder, the USB accessory) are still left to fail and recover through
-//! the existing `ExitContainer` restart path.
+//! On suspend it ends the Android Auto session and drops the Bluetooth links,
+//! then releases the lock; on resume it restarts both. It can also suspend the
+//! machine itself after a configurable time on battery.
 
 use std::time::Duration;
 
@@ -93,10 +92,11 @@ struct LastLogged {
     percent: Option<i64>,
 }
 
-/// How long to wait for the Android Auto session to tear down before letting
-/// the machine suspend anyway. Must stay under logind's `InhibitDelayMaxSec`
-/// (5s by default) or logind stops waiting for us regardless.
-const TEARDOWN_TIMEOUT: Duration = Duration::from_secs(4);
+/// Budget for preparing to suspend, split between ending the Android Auto
+/// session and dropping the Bluetooth links. The total must stay under logind's
+/// `InhibitDelayMaxSec` (5s by default) or logind suspends mid-teardown anyway.
+const TEARDOWN_TIMEOUT: Duration = Duration::from_millis(2500);
+const BT_DISCONNECT_TIMEOUT: Duration = Duration::from_millis(1500);
 
 /// Sent to the UI thread, which owns the Android Auto container.
 pub(crate) enum AaCommand {
@@ -258,6 +258,7 @@ async fn run(
                 if *args.start() {
                     log::info!("System is suspending");
                     terminate_android_auto(&aa).await;
+                    disconnect_bluetooth(&bt).await;
                     // Release the delay lock so logind can actually suspend.
                     drop(inhibitor.take());
                 } else {
@@ -377,6 +378,25 @@ async fn terminate_android_auto(aa: &tokio::sync::mpsc::Sender<AaCommand>) {
         Ok(Ok(())) => log::info!("Android Auto session ended before suspend"),
         Ok(Err(_)) => log::warn!("Android Auto teardown was abandoned"),
         Err(_) => log::warn!("Android Auto teardown timed out; suspending anyway"),
+    }
+}
+
+/// Drop the Bluetooth links before the machine goes down, so neither our
+/// controller nor the phone's is left holding a connection to a sleeping host.
+async fn disconnect_bluetooth(bt: &tokio::sync::mpsc::Sender<crate::btmedia::Command>) {
+    let (ack_tx, ack_rx) = tokio::sync::oneshot::channel();
+    if bt
+        .send(crate::btmedia::Command::Disconnect(ack_tx))
+        .await
+        .is_err()
+    {
+        log::warn!("Could not reach the Bluetooth worker to disconnect");
+        return;
+    }
+    match tokio::time::timeout(BT_DISCONNECT_TIMEOUT, ack_rx).await {
+        Ok(Ok(())) => log::info!("Bluetooth disconnected before suspend"),
+        Ok(Err(_)) => log::warn!("Bluetooth disconnect was abandoned"),
+        Err(_) => log::warn!("Bluetooth disconnect timed out; suspending anyway"),
     }
 }
 

@@ -9,6 +9,9 @@ use cpal::traits::{DeviceTrait, HostTrait};
 /// Ring-buffer producer feeding a cpal output stream.
 pub(crate) type AudioProducer = ringbuf::HeapProd<i16>;
 
+/// Audio buffered before playback (re)starts, in milliseconds.
+const PREBUFFER_MS: usize = 80;
+
 /// Build a cpal error callback that rate-limits logging. ALSA can raise
 /// `POLLERR` on every poll once an output device misbehaves (e.g. an HDMI sink
 /// that went away), which would otherwise spam the log many times per second.
@@ -49,28 +52,33 @@ pub(crate) fn build_output_stream_for(
             let sc = c.try_with_sample_rate(rate)?;
             let rb = ringbuf::HeapRb::new(buf_size);
             let (producer, mut consumer) = ringbuf::traits::Split::split(rb);
+            // Elastic buffer held before playback resumes. Android Auto delivers
+            // audio in bursts, so without it the ring buffer hovers near empty
+            // and nearly every period gets partially silence-filled — audible as
+            // micro-dropouts and visible as jitter in the spectrum visualizer.
+            let prebuffer =
+                (rate as usize * channels as usize * PREBUFFER_MS / 1000).min(buf_size / 2);
+            let mut priming = true;
             let stream = device
                 .build_output_stream(
                     &sc.config(),
                     move |data: &mut [i16], _| {
-                        // Pull as much real audio as the ring buffer holds, then
-                        // fill any remainder with silence. Always handing ALSA a
-                        // full period prevents playback underruns (xruns) during
-                        // gaps in the android-auto audio stream — those xruns are
-                        // what surface as a continuous `POLLERR` error spam.
-                        let mut idx = 0;
-                        while idx < data.len() {
-                            let n = ringbuf::traits::Consumer::pop_slice(
-                                &mut consumer,
-                                &mut data[idx..],
-                            );
-                            if n == 0 {
-                                break;
+                        use ringbuf::traits::{Consumer, Observer};
+                        // Always hand ALSA a full period: partial periods surface
+                        // as xruns and a continuous `POLLERR` error spam.
+                        if priming {
+                            if consumer.occupied_len() < prebuffer.max(data.len()) {
+                                data.fill(0);
+                                return;
                             }
-                            idx += n;
+                            priming = false;
                         }
-                        // Silence-fill whatever the ring buffer could not supply.
-                        data[idx..].fill(0);
+                        let n = consumer.pop_slice(data);
+                        if n < data.len() {
+                            data[n..].fill(0);
+                            // Re-prime rather than dribbling silence every period.
+                            priming = true;
+                        }
                     },
                     throttled_error_fn(label),
                     None,

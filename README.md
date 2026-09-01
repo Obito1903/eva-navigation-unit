@@ -46,7 +46,7 @@ to tailor the experience to whatever screen/SBC you're running it on.
 - [ ] Audio Equilizer & effects
   - [X] EQ
   - [X] Effect toggles
-  - [X] Complete JamesDSP controls
+  - [ ] Complete JamesDSP controls
 - [X] Nice 90s wireframe-style interface
   - [x] Multiple color themes
 - [ ] OBD2
@@ -55,7 +55,7 @@ to tailor the experience to whatever screen/SBC you're running it on.
   - Show OBD2 engine faults
 - [ ] Controller/GPIO input for integration with native car headunit buttons
 - [ ] Multi-point touch input for AA
-- [ ] System power awareness (opt-in `power` cargo feature)
+- [X] System power awareness (opt-in `power` cargo feature)
   - [x] Detect suspend/resume via systemd-logind
   - [x] Detect charging/discharging, mains presence and battery level via UPower
   - [x] Reconnect the last Bluetooth device on startup and on resume, and start

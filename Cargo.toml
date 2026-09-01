@@ -52,7 +52,7 @@ opt-level = 3
 
 [features]
 # Both transport modes enabled by default — match the android-auto path dep
-default = ["jamesdsp", "networkmanager-hotspot"]
+default = ["jamesdsp", "networkmanager-hotspot", "power"]
 
 # Emit a Chrome/Perfetto trace file (open in https://ui.perfetto.dev). See
 # docs for usage; adds the `tracing-chrome` layer.

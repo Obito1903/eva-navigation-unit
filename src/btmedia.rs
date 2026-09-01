@@ -50,6 +50,15 @@ trait Device1 {
     fn connected(&self) -> zbus::Result<bool>;
 }
 
+#[proxy(interface = "org.bluez.Adapter1", default_service = "org.bluez")]
+trait Adapter1 {
+    #[zbus(property)]
+    fn powered(&self) -> zbus::Result<bool>;
+
+    #[zbus(property)]
+    fn set_powered(&self, value: bool) -> zbus::Result<()>;
+}
+
 #[proxy(interface = "org.bluez.MediaPlayer1", default_service = "org.bluez")]
 trait MediaPlayer1 {
     fn play(&self) -> zbus::Result<()>;
@@ -152,17 +161,10 @@ async fn run(
     };
 
     let mut last_device = last_device;
-    // Reconnects run detached so a phone that is out of range cannot stall the
+    // Bring-up runs detached so a phone that is out of range cannot stall the
     // connection tracking for the length of the whole backoff.
     let busy = Arc::new(AtomicBool::new(false));
-    let mut reconnect_task: Option<tokio::task::JoinHandle<()>> = None;
-
-    match &last_device {
-        Some(address) => {
-            reconnect_task = spawn_reconnect(&conn, address.clone(), &busy, Duration::ZERO)
-        }
-        None => log::debug!("No remembered Bluetooth device to reconnect to"),
-    }
+    let mut reconnect_task = spawn_bring_up(&conn, last_device.clone(), &busy, Duration::ZERO);
 
     loop {
         tokio::select! {
@@ -173,13 +175,10 @@ async fn run(
 
             Some(cmd) = cmd_rx.recv() => {
                 match cmd {
-                    Command::Reconnect => match &last_device {
-                        Some(address) => {
-                            reconnect_task =
-                                spawn_reconnect(&conn, address.clone(), &busy, resume_delay);
-                        }
-                        None => log::debug!("No remembered Bluetooth device to reconnect to"),
-                    },
+                    Command::Reconnect => {
+                        reconnect_task =
+                            spawn_bring_up(&conn, last_device.clone(), &busy, resume_delay);
+                    }
                     Command::Disconnect(ack) => {
                         // A reconnect mid-backoff would happily undo this, so
                         // stop it before dropping the links.
@@ -207,28 +206,67 @@ async fn run(
     }
 }
 
-/// Run a reconnect in the background, unless one is already in flight. This is
-/// also what coalesces an overlapping startup and resume trigger.
-fn spawn_reconnect(
+/// Bring Bluetooth back up: power the controller, then reconnect the remembered
+/// device if there is one. Skipped when a bring-up is already in flight, which
+/// is also what coalesces an overlapping startup and resume trigger.
+fn spawn_bring_up(
     conn: &Connection,
-    address: String,
+    address: Option<String>,
     busy: &Arc<AtomicBool>,
     delay: Duration,
 ) -> Option<tokio::task::JoinHandle<()>> {
     if busy.swap(true, Ordering::SeqCst) {
-        log::debug!("Bluetooth reconnect already in progress — ignoring trigger");
+        log::debug!("Bluetooth bring-up already in progress — ignoring trigger");
         return None;
     }
     let conn = conn.clone();
     let busy = busy.clone();
     Some(tokio::spawn(async move {
         if !delay.is_zero() {
-            log::debug!("Waiting {}ms before reconnecting Bluetooth", delay.as_millis());
+            log::debug!("Waiting {}ms before bringing Bluetooth up", delay.as_millis());
             tokio::time::sleep(delay).await;
         }
-        reconnect_and_play(&conn, &address).await;
+        power_on_adapters(&conn).await;
+        match &address {
+            Some(address) => reconnect_and_play(&conn, address).await,
+            None => log::debug!("No remembered Bluetooth device to reconnect to"),
+        }
         busy.store(false, Ordering::SeqCst);
     }))
+}
+
+/// Power on any adapter that is down. A suspend, a driver reload or an external
+/// `rfkill` can leave the controller off, and nothing else here works until it
+/// is back.
+async fn power_on_adapters(conn: &Connection) {
+    let Some(objects) = managed_objects(conn).await else {
+        return;
+    };
+    for (path, interfaces) in objects {
+        if !interfaces
+            .keys()
+            .any(|i| i.as_str() == "org.bluez.Adapter1")
+        {
+            continue;
+        }
+        let Ok(builder) = Adapter1Proxy::builder(conn).path(&path) else {
+            continue;
+        };
+        let Ok(adapter) = builder.build().await else {
+            continue;
+        };
+        if adapter.powered().await.unwrap_or(false) {
+            log::debug!("Bluetooth adapter {} already powered", path.as_str());
+            continue;
+        }
+        match adapter.set_powered(true).await {
+            Ok(()) => log::info!("Powered on Bluetooth adapter {}", path.as_str()),
+            Err(e) => log::warn!(
+                "Could not power on Bluetooth adapter {} (rfkill blocked?): {e}",
+                path.as_str()
+            ),
+        }
+    }
 }
 
 /// Drop every Bluetooth link so both controllers tear the connection down

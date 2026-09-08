@@ -204,6 +204,19 @@ pub(crate) fn wire(
         });
     }
 
+    // ── Video brightness: Settings UI → config ────────────────────────────
+    // Dims the Android Auto picture only; the panel backlight is handled by
+    // the quick-controls brightness slider above.
+    {
+        let cfg = cfg.clone();
+        window.on_aa_video_brightness_changed(move |brightness| {
+            log::debug!("Android Auto video brightness set to {brightness:.2}");
+            let mut cfg = cfg.borrow_mut();
+            cfg.aa_video_brightness = brightness;
+            cfg.save();
+        });
+    }
+
     // ── View transition: Settings UI → config ─────────────────────────────
     {
         let cfg = cfg.clone();

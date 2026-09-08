@@ -46,6 +46,7 @@ CLI flags always take precedence over the config file.
 | `reset_stale_accessory` | `--reset-stale-accessory` | `EVA_RESET_STALE_ACCESSORY` | `true` | Reset a USB phone left in AOA accessory mode at startup, clearing a stale session from a previous run. Disable on controllers that misbehave on USB reset (e.g. Nintendo Switch Tegra xHCI). |
 | `resolution` | `--resolution` | `EVA_RESOLUTION` | `720` | Android Auto video vertical resolution. Snapped to `480`, `720`, or `1080`. |
 | `fps` | `--fps` | `EVA_FPS` | `30` | Android Auto video frame rate. Snapped to `30` or `60`. |
+| `aa_video_brightness` | `--aa-video-brightness` | `EVA_AA_VIDEO_BRIGHTNESS` | `1.0` | Brightness of the Android Auto picture only (does not change the panel backlight). Range `0.1`–`1.0`. |
 | `transition_mode` | `--transition-mode` | `EVA_TRANSITION_MODE` | `0` | View transition mode: `0` = CRT, `1` = FADE, `2` = SLIDE. |
 | `aa_video_transition_mode` | `--aa-video-transition-mode` | `EVA_AA_VIDEO_TRANSITION_MODE` | `1` | Android Auto video start/stop transition: `0` = CRT, `1` = FADE, `2` = SLIDE. |
 | `transition_speed` | `--transition-speed` | `EVA_TRANSITION_SPEED` | `1.0` | View transition speed multiplier. Range `0.25`–`3.0`; higher is faster. |
@@ -119,6 +120,7 @@ usb = true
 reset_stale_accessory = true
 resolution = 720
 fps = 30
+aa_video_brightness = 1.0
 transition_mode = 0
 aa_video_transition_mode = 1
 transition_speed = 1.0

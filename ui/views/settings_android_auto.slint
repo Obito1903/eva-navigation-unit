@@ -30,6 +30,13 @@ export component SettingsAndroidAutoTab inherits Rectangle {
     in-out property <int> fps: 30;
     callback fps-changed(int);
 
+    // Brightness of the Android Auto picture only (does not touch the panel
+    // backlight). 1.0 = untouched.
+    in-out property <float> video-brightness: 1.0;
+    callback video-brightness-changed(float);
+    property <float> min-video-brightness: 0.1;
+    property <float> max-video-brightness: 1.0;
+
     VerticalLayout {
         alignment: start;
         padding: 24px;
@@ -154,6 +161,41 @@ export component SettingsAndroidAutoTab inherits Rectangle {
                     selected(i) => {
                         root.fps = i == 1 ? 60 : 30;
                         root.fps-changed(root.fps);
+                    }
+                }
+            }
+
+            // Video brightness control (picture only, not the panel backlight)
+            VerticalLayout {
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Text {
+                        text: "VIDEO BRIGHTNESS";
+                        color: Theme.text;
+                        font-size: 14px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: Math.round(root.video-brightness * 100) + "%";
+                        color: Theme.text;
+                        font-size: 14px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    value: (root.video-brightness - root.min-video-brightness) / (root.max-video-brightness - root.min-video-brightness);
+                    value-changed(v) => {
+                        root.video-brightness = clamp(root.min-video-brightness + v * (root.max-video-brightness - root.min-video-brightness), root.min-video-brightness, root.max-video-brightness);
+                        root.video-brightness-changed(root.video-brightness);
                     }
                 }
             }

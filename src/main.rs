@@ -83,6 +83,7 @@ fn main() -> Result<(), slint::PlatformError> {
     window.set_aa_usb_enabled(cfg.usb);
     window.set_aa_resolution(cfg.resolution);
     window.set_aa_fps(cfg.fps);
+    window.set_aa_video_brightness(cfg.aa_video_brightness);
     window.set_transition_mode(cfg.transition_mode);
     window.set_aa_video_transition_mode(cfg.aa_video_transition_mode);
     window.set_transition_speed(cfg.transition_speed);

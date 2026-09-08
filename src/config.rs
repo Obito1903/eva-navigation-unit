@@ -43,6 +43,11 @@ pub(crate) const DEFAULT_RESET_STALE_ACCESSORY: bool = true;
 pub(crate) const DEFAULT_RESOLUTION: i32 = 720;
 /// Default Android Auto video frame rate (30 or 60 fps).
 pub(crate) const DEFAULT_FPS: i32 = 30;
+/// Default Android Auto picture brightness multiplier (1.0 = untouched).
+pub(crate) const DEFAULT_AA_VIDEO_BRIGHTNESS: f32 = 1.0;
+/// Minimum / maximum selectable Android Auto picture brightness multiplier.
+pub(crate) const MIN_AA_VIDEO_BRIGHTNESS: f32 = 0.1;
+pub(crate) const MAX_AA_VIDEO_BRIGHTNESS: f32 = 1.0;
 /// Default color theme (0 = NERV-HQ | 1 = MATRIX).
 pub(crate) const DEFAULT_THEME: i32 = 0;
 /// Default GL underlay wireframe model (0 = sphere | 1 = cube | 2 = car | 3 = speaker).
@@ -178,6 +183,11 @@ struct Cli {
     /// Android Auto video frame rate (30 or 60).
     #[arg(long, env = "EVA_FPS")]
     fps: Option<i32>,
+
+    /// Android Auto picture brightness multiplier (0.1 - 1.0). Dims the
+    /// streamed video only, not the panel backlight.
+    #[arg(long, env = "EVA_AA_VIDEO_BRIGHTNESS")]
+    aa_video_brightness: Option<f32>,
 
     /// View transition mode (0 = CRT | 1 = FADE | 2 = SLIDE).
     #[arg(long, env = "EVA_TRANSITION_MODE")]
@@ -359,6 +369,7 @@ struct FileConfig {
     reset_stale_accessory: Option<bool>,
     resolution: Option<i32>,
     fps: Option<i32>,
+    aa_video_brightness: Option<f32>,
     transition_mode: Option<i32>,
     aa_video_transition_mode: Option<i32>,
     transition_speed: Option<f32>,
@@ -526,6 +537,8 @@ pub(crate) struct Config {
     pub(crate) reset_stale_accessory: bool,
     pub(crate) resolution: i32,
     pub(crate) fps: i32,
+    /// Android Auto picture brightness multiplier (video only, not the panel).
+    pub(crate) aa_video_brightness: f32,
     pub(crate) transition_mode: i32,
     pub(crate) aa_video_transition_mode: i32,
     pub(crate) transition_speed: f32,
@@ -606,6 +619,10 @@ impl Config {
             .or(file.resolution)
             .unwrap_or(DEFAULT_RESOLUTION);
         let fps = cli.fps.or(file.fps).unwrap_or(DEFAULT_FPS);
+        let aa_video_brightness = cli
+            .aa_video_brightness
+            .or(file.aa_video_brightness)
+            .unwrap_or(DEFAULT_AA_VIDEO_BRIGHTNESS);
         let transition_mode = cli
             .transition_mode
             .or(file.transition_mode)
@@ -743,6 +760,7 @@ impl Config {
             reset_stale_accessory,
             resolution,
             fps,
+            aa_video_brightness,
             transition_mode,
             aa_video_transition_mode,
             transition_speed,
@@ -787,6 +805,7 @@ impl Config {
             reset_stale_accessory,
             resolution,
             fps,
+            aa_video_brightness,
             transition_mode,
             aa_video_transition_mode,
             transition_speed,
@@ -839,6 +858,8 @@ impl Config {
                 480
             },
             fps: if fps >= 60 { 60 } else { 30 },
+            aa_video_brightness: aa_video_brightness
+                .clamp(MIN_AA_VIDEO_BRIGHTNESS, MAX_AA_VIDEO_BRIGHTNESS),
             transition_mode: transition_mode.clamp(0, 2),
             aa_video_transition_mode: aa_video_transition_mode.clamp(0, 2),
             transition_speed: transition_speed.clamp(MIN_TRANSITION_SPEED, MAX_TRANSITION_SPEED),
@@ -884,6 +905,7 @@ impl Config {
             reset_stale_accessory: Some(self.reset_stale_accessory),
             resolution: Some(self.resolution),
             fps: Some(self.fps),
+            aa_video_brightness: Some(self.aa_video_brightness),
             transition_mode: Some(self.transition_mode),
             aa_video_transition_mode: Some(self.aa_video_transition_mode),
             transition_speed: Some(self.transition_speed),

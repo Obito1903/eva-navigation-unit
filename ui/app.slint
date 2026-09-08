@@ -171,6 +171,11 @@ export component AppWindow inherits Window {
     in-out property <int> aa-fps: 30;
     callback aa-fps-changed(int);
 
+    // Android Auto picture brightness (0.1 - 1.0). Dims the streamed video
+    // only; the panel backlight is driven by `brightness-level`.
+    in-out property <float> aa-video-brightness: 1.0;
+    callback aa-video-brightness-changed(float);
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -245,6 +250,7 @@ export component AppWindow inherits Window {
                     active: root.active-view == 0;
                     transition-mode: root.aa-video-transition-mode;
                     transition-speed: root.aa-video-transition-speed;
+                    video-brightness: root.aa-video-brightness;
                     app-name: root.app-name;
                     car-name-long: root.car-name-long;
                     version-text: root.aa-version-text;
@@ -319,6 +325,10 @@ export component AppWindow inherits Window {
                     aa-fps <=> root.aa-fps;
                     aa-fps-changed(v) => {
                         root.aa-fps-changed(v);
+                    }
+                    aa-video-brightness <=> root.aa-video-brightness;
+                    aa-video-brightness-changed(v) => {
+                        root.aa-video-brightness-changed(v);
                     }
                     fullscreen <=> root.fullscreen;
                     fullscreen-changed(on) => {

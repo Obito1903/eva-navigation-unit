@@ -42,6 +42,10 @@ export component SettingsView inherits Rectangle {
     in-out property <int> aa-fps: 30;
     callback aa-fps-changed(int);
 
+    // Android Auto picture brightness (0.1 - 1.0); does not affect the panel backlight
+    in-out property <float> aa-video-brightness: 1.0;
+    callback aa-video-brightness-changed(float);
+
     // View transition mode: 0 = CRT | 1 = FADE | 2 = SLIDE
     in-out property <int> transition-mode: 0;
     callback transition-changed(int);
@@ -317,6 +321,10 @@ export component SettingsView inherits Rectangle {
                     fps <=> root.aa-fps;
                     fps-changed(v) => {
                         root.aa-fps-changed(v);
+                    }
+                    video-brightness <=> root.aa-video-brightness;
+                    video-brightness-changed(v) => {
+                        root.aa-video-brightness-changed(v);
                     }
                     }
                 }

@@ -1,0 +1,337 @@
+import { Theme } from "../theme.slint";
+import { Dropdown } from "../components/dropdown.slint";
+import { Toggle } from "../components/toggle.slint";
+import { CapsuleBarSlider } from "../components/capsule_bar_slider.slint";
+
+// Power category settings tab: sleep behaviour, post-resume timings, and which
+// view to land on at startup and after waking.
+//
+// All delays are exposed as 0.0-1.0 slider fractions; the mapping to
+// milliseconds lives in Rust so the bounds stay next to the config clamps.
+export component SettingsPowerTab inherits Rectangle {
+    background: transparent;
+
+    // Live power-supply readout, pushed from the power monitor.
+    in property <bool> power-available: false;
+    in property <bool> power-on-battery: false;
+    in property <int> power-percent: 0;
+    in property <string> power-state: "unknown";
+
+    // Suspend once mains has been gone for `suspend-delay` (0.0-1.0).
+    in-out property <bool> suspend-on-battery: false;
+    callback suspend-on-battery-changed(bool);
+    in-out property <float> suspend-delay: 0.0;
+    in property <string> suspend-delay-label: "40s";
+    callback suspend-delay-changed(float);
+    callback suspend-delay-committed(float);
+
+    // Settling delays applied after a resume.
+    in-out property <float> aa-resume-delay: 0.0;
+    in property <string> aa-resume-delay-label: "5s";
+    callback aa-resume-delay-changed(float);
+    callback aa-resume-delay-committed(float);
+
+    in-out property <float> bt-resume-delay: 0.0;
+    in property <string> bt-resume-delay-label: "3s";
+    callback bt-resume-delay-changed(float);
+    callback bt-resume-delay-committed(float);
+
+    // View indices match the sidebar: 0 = AUTO | 1 = SYS | 2 = CTRL | 3 = VIZ.
+    in-out property <int> startup-view: 0;
+    callback startup-view-changed(int);
+    // Index 0 is "KEEP CURRENT"; the rest are offset by one from the view index.
+    in-out property <int> resume-view: -1;
+    callback resume-view-changed(int);
+
+    VerticalLayout {
+        alignment: start;
+        padding: 24px;
+        spacing: 20px;
+
+        Text {
+            text: "POWER";
+            color: Theme.text;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 3px;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.red-dim;
+        }
+
+        // ── Views ─────────────────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "VIEWS";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "AT STARTUP";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 220px;
+                    options: ["ANDROID AUTO", "SYSTEM", "CONTROLS", "VISUALIZER"];
+                    current-index: root.startup-view;
+                    selected(i) => {
+                        root.startup-view = i;
+                        root.startup-view-changed(i);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "AFTER RESUME";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 220px;
+                    options: ["KEEP CURRENT", "ANDROID AUTO", "SYSTEM", "CONTROLS", "VISUALIZER"];
+                    current-index: root.resume-view + 1;
+                    selected(i) => {
+                        root.resume-view = i - 1;
+                        root.resume-view-changed(root.resume-view);
+                    }
+                }
+            }
+        }
+
+        // ── Sleep ─────────────────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "SLEEP";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "SUSPEND ON BATTERY";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    checked <=> root.suspend-on-battery;
+                    toggled(on) => {
+                        root.suspend-on-battery-changed(on);
+                    }
+                }
+            }
+
+            VerticalLayout {
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Text {
+                        text: "SUSPEND AFTER";
+                        color: root.suspend-on-battery ? Theme.text-dim : Theme.text-mute;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: root.suspend-delay-label;
+                        color: root.suspend-on-battery ? Theme.text : Theme.text-mute;
+                        font-size: 13px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    height: 32px;
+                    value <=> root.suspend-delay;
+                    value-changed(v) => {
+                        root.suspend-delay-changed(v);
+                    }
+                    value-committed(v) => {
+                        root.suspend-delay-committed(v);
+                    }
+                }
+            }
+
+            Text {
+                text: "Suspends the head unit once the car has been switched off for this long. Reconnecting power cancels a pending suspend.";
+                color: Theme.text-mute;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+
+        // ── Resume ────────────────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "RESUME";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            VerticalLayout {
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Text {
+                        text: "ANDROID AUTO RESTART DELAY";
+                        color: Theme.text-dim;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: root.aa-resume-delay-label;
+                        color: Theme.text;
+                        font-size: 13px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    height: 32px;
+                    value <=> root.aa-resume-delay;
+                    value-changed(v) => {
+                        root.aa-resume-delay-changed(v);
+                    }
+                    value-committed(v) => {
+                        root.aa-resume-delay-committed(v);
+                    }
+                }
+            }
+
+            VerticalLayout {
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    Text {
+                        text: "BLUETOOTH RECONNECT DELAY";
+                        color: Theme.text-dim;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 1px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: root.bt-resume-delay-label;
+                        color: Theme.text;
+                        font-size: 13px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                CapsuleBarSlider {
+                    height: 32px;
+                    value <=> root.bt-resume-delay;
+                    value-changed(v) => {
+                        root.bt-resume-delay-changed(v);
+                    }
+                    value-committed(v) => {
+                        root.bt-resume-delay-committed(v);
+                    }
+                }
+            }
+
+            Text {
+                text: "Time to let USB, Wi-Fi and the Bluetooth adapter settle after waking before reconnecting. Too short and the reconnect races the hardware coming back.";
+                color: Theme.text-mute;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+
+        // ── Live status ───────────────────────────────────────────────
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "SUPPLY";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "STATUS";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Text {
+                    text: root.power-available
+                        ? (root.power-state + "  " + root.power-percent + "%  ·  MAINS "
+                            + (root.power-on-battery ? "ABSENT" : "PRESENT"))
+                        : "NOT AVAILABLE";
+                    color: root.power-available
+                        ? (root.power-on-battery ? Theme.text : Theme.text-dim)
+                        : Theme.text-mute;
+                    font-size: 13px;
+                    font-weight: 600;
+                    letter-spacing: 1px;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

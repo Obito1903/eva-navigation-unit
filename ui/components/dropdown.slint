@@ -1,5 +1,42 @@
 import { Theme } from "../theme.slint";
 
+// Text that slides back and forth when it is wider than its box, so long
+// entries (e.g. a device name plus its MAC) stay fully readable. Sits still
+// when the text already fits.
+component MarqueeText inherits Rectangle {
+    in property <string> text;
+    in property <brush> text-color;
+
+    clip: true;
+    // Without this the natural text width becomes the box's min-width, which
+    // would widen the dropdown instead of scrolling inside it.
+    min-width: 0px;
+
+    private property <length> overflow: max(0px, label.preferred-width - self.width);
+    private property <bool> shifted: false;
+
+    label := Text {
+        text: root.text;
+        color: root.text-color;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        vertical-alignment: center;
+        width: self.preferred-width;
+        height: 100%;
+        x: root.shifted ? -root.overflow : 0px;
+        animate x { duration: 1800ms; easing: ease-in-out; }
+    }
+
+    Timer {
+        interval: 2500ms;
+        running: root.overflow > 0px;
+        triggered => {
+            root.shifted = !root.shifted;
+        }
+    }
+}
+
 // NERV-styled dropdown selector. Shows the current option and opens a popup
 // list of choices. Emits `selected(index)` when a new option is picked.
 export component Dropdown inherits Rectangle {
@@ -18,14 +55,10 @@ export component Dropdown inherits Rectangle {
         padding-right: 12px;
         spacing: 8px;
 
-        Text {
+        MarqueeText {
             text: (root.current-index >= 0 && root.current-index < root.options.length)
                 ? root.options[root.current-index] : "";
-            color: Theme.text;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            vertical-alignment: center;
+            text-color: Theme.text;
             horizontal-stretch: 1;
         }
 
@@ -58,14 +91,12 @@ export component Dropdown inherits Rectangle {
                     height: 34px;
                     background: idx == root.current-index ? Theme.red-dim : transparent;
 
-                    Text {
+                    MarqueeText {
                         x: 12px;
+                        width: parent.width - 24px;
+                        height: 100%;
                         text: opt;
-                        color: idx == root.current-index ? Theme.text : Theme.text-dim;
-                        font-size: 13px;
-                        font-weight: 600;
-                        letter-spacing: 1px;
-                        vertical-alignment: center;
+                        text-color: idx == root.current-index ? Theme.text : Theme.text-dim;
                     }
 
                     TouchArea {

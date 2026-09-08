@@ -113,10 +113,20 @@ pub(crate) struct BatterySuspend {
     pub(crate) delay: Duration,
 }
 
+/// Power-supply state pushed to the UI for the Settings readout.
+pub(crate) struct Supply {
+    /// `false` when UPower has nothing usable, so the UI can say so.
+    pub(crate) available: bool,
+    pub(crate) on_battery: bool,
+    pub(crate) percent: i32,
+    pub(crate) state: &'static str,
+}
+
 /// Owns the background thread + tokio runtime watching logind and UPower.
 /// Mirrors the shape of [`crate::jamesdsp::JamesDspContainer`].
 pub(crate) struct PowerMonitor {
     thread: Option<std::thread::JoinHandle<()>>,
+    pub(crate) recv: tokio::sync::mpsc::Receiver<Supply>,
     kill: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
@@ -129,16 +139,19 @@ impl PowerMonitor {
         battery_suspend: BatterySuspend,
     ) -> Self {
         let (kill_tx, kill_rx) = tokio::sync::oneshot::channel::<()>();
+        let (evt_tx, evt_rx) = tokio::sync::mpsc::channel::<Supply>(8);
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("Failed to build tokio runtime");
 
-        let thread = std::thread::spawn(move || rt.block_on(run(kill_rx, bt, aa, battery_suspend)));
+        let thread =
+            std::thread::spawn(move || rt.block_on(run(kill_rx, bt, aa, battery_suspend, evt_tx)));
 
         Self {
             thread: Some(thread),
+            recv: evt_rx,
             kill: Some(kill_tx),
         }
     }
@@ -164,6 +177,7 @@ async fn run(
     bt: tokio::sync::mpsc::Sender<crate::btmedia::Command>,
     aa: tokio::sync::mpsc::Sender<AaCommand>,
     battery_suspend: BatterySuspend,
+    evt_tx: tokio::sync::mpsc::Sender<Supply>,
 ) {
     let conn = match Connection::system().await {
         Ok(c) => c,
@@ -221,6 +235,7 @@ async fn run(
     if let Some(u) = &upower {
         log_snapshot(u, &mut last).await;
     }
+    let _ = evt_tx.send(supply_from(&last, upower.is_some())).await;
 
     // Armed whenever mains is absent. Evaluated from the current value rather
     // than only on transitions, so starting up (or resuming) already on battery
@@ -276,6 +291,7 @@ async fn run(
                     // battery, so re-arm from the value we just read.
                     suspend_at =
                         arm_suspend(battery_suspend, last.on_battery.unwrap_or(false), None);
+                    let _ = evt_tx.send(supply_from(&last, upower.is_some())).await;
                 }
             }
 
@@ -289,6 +305,7 @@ async fn run(
                         }
                     }
                     suspend_at = arm_suspend(battery_suspend, on_battery, suspend_at);
+                    let _ = evt_tx.send(supply_from(&last, true)).await;
                 }
             }
 
@@ -303,10 +320,11 @@ async fn run(
             }
 
             Some(changed) = next_or_pending(&mut state_changes) => {
-                if let Ok(state) = changed.get().await
-                    && last.state.replace(state) != Some(state)
-                {
-                    log::info!("Battery state: {}", state_name(state));
+                if let Ok(state) = changed.get().await {
+                    if last.state.replace(state) != Some(state) {
+                        log::info!("Battery state: {}", state_name(state));
+                    }
+                    let _ = evt_tx.send(supply_from(&last, true)).await;
                 }
             }
 
@@ -315,6 +333,7 @@ async fn run(
                     let rounded = percent.round() as i64;
                     if last.percent.replace(rounded) != Some(rounded) {
                         log::debug!("Battery at {rounded}%");
+                        let _ = evt_tx.send(supply_from(&last, true)).await;
                     }
                 }
             }
@@ -473,9 +492,18 @@ async fn log_snapshot(upower: &UPowerState, last: &mut LastLogged) {
     );
 }
 
+/// Snapshot the last-read values for the Settings readout.
+fn supply_from(last: &LastLogged, available: bool) -> Supply {
+    Supply {
+        available,
+        on_battery: last.on_battery.unwrap_or(false),
+        percent: last.percent.unwrap_or(0) as i32,
+        state: state_name(last.state.unwrap_or(0)),
+    }
+}
+
 /// `UP_DEVICE_STATE` values as reported by UPower.
-fn state_name(state: u32) -> &'static str {
-    match state {
+fn state_name(state: u32) -> &'static str {    match state {
         1 => "charging",
         2 => "discharging",
         3 => "empty",

@@ -77,6 +77,22 @@ pub(crate) enum Command {
     /// Drop every Bluetooth link before the machine suspends. The ack fires
     /// once the disconnects have been issued.
     Disconnect(tokio::sync::oneshot::Sender<()>),
+    /// Apply changed auto-connect settings from the Settings UI.
+    SetPolicy(AutoConnect),
+}
+
+/// Which device to bring back automatically, if any.
+#[derive(Clone)]
+pub(crate) struct AutoConnect {
+    pub(crate) enabled: bool,
+    /// `None` follows whichever device connected most recently.
+    pub(crate) pinned: Option<String>,
+}
+
+/// A device BlueZ already knows about, offered in the Settings UI.
+pub(crate) struct KnownDevice {
+    pub(crate) address: String,
+    pub(crate) label: String,
 }
 
 /// Sent from the worker to the UI thread.
@@ -84,6 +100,8 @@ pub(crate) enum Event {
     /// A device connected; persist its address as the one to reconnect to.
     /// `Config` is not `Send`, so the UI thread has to do the actual saving.
     LastDeviceChanged(String),
+    /// The paired devices to offer in the auto-connect picker.
+    KnownDevices(Vec<KnownDevice>),
 }
 
 /// Owns the background thread + tokio runtime talking to BlueZ, and the
@@ -99,7 +117,11 @@ impl BtMediaContainer {
     /// `last_device` is the address remembered from a previous run, if any.
     /// `resume_delay` lets the Bluetooth stack settle before a post-resume
     /// reconnect; it is not applied to the startup attempt.
-    pub(crate) fn new(last_device: Option<String>, resume_delay: Duration) -> Self {
+    pub(crate) fn new(
+        last_device: Option<String>,
+        resume_delay: Duration,
+        auto: AutoConnect,
+    ) -> Self {
         let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<Command>(8);
         let (evt_tx, evt_rx) = tokio::sync::mpsc::channel::<Event>(8);
         let (kill_tx, kill_rx) = tokio::sync::oneshot::channel::<()>();
@@ -110,7 +132,7 @@ impl BtMediaContainer {
             .expect("Failed to build tokio runtime");
 
         let thread = std::thread::spawn(move || {
-            rt.block_on(run(kill_rx, cmd_rx, evt_tx, last_device, resume_delay))
+            rt.block_on(run(kill_rx, cmd_rx, evt_tx, last_device, resume_delay, auto))
         });
 
         Self {
@@ -143,6 +165,7 @@ async fn run(
     evt_tx: tokio::sync::mpsc::Sender<Event>,
     last_device: Option<String>,
     resume_delay: Duration,
+    auto: AutoConnect,
 ) {
     let conn = match Connection::system().await {
         Ok(c) => c,
@@ -161,10 +184,18 @@ async fn run(
     };
 
     let mut last_device = last_device;
+    let mut auto = auto;
     // Bring-up runs detached so a phone that is out of range cannot stall the
     // connection tracking for the length of the whole backoff.
     let busy = Arc::new(AtomicBool::new(false));
-    let mut reconnect_task = spawn_bring_up(&conn, last_device.clone(), &busy, Duration::ZERO);
+    let mut reconnect_task = spawn_bring_up(
+        &conn,
+        auto_target(&auto, &last_device),
+        &busy,
+        Duration::ZERO,
+    );
+
+    publish_known_devices(&conn, &evt_tx).await;
 
     loop {
         tokio::select! {
@@ -176,8 +207,12 @@ async fn run(
             Some(cmd) = cmd_rx.recv() => {
                 match cmd {
                     Command::Reconnect => {
-                        reconnect_task =
-                            spawn_bring_up(&conn, last_device.clone(), &busy, resume_delay);
+                        reconnect_task = spawn_bring_up(
+                            &conn,
+                            auto_target(&auto, &last_device),
+                            &busy,
+                            resume_delay,
+                        );
                     }
                     Command::Disconnect(ack) => {
                         // A reconnect mid-backoff would happily undo this, so
@@ -189,12 +224,25 @@ async fn run(
                         disconnect_all(&conn).await;
                         let _ = ack.send(());
                     }
+                    Command::SetPolicy(policy) => {
+                        auto = policy;
+                        log::debug!(
+                            "Bluetooth auto-connect: {}",
+                            match (auto.enabled, &auto.pinned) {
+                                (false, _) => "disabled".to_string(),
+                                (true, Some(a)) => format!("pinned to {a}"),
+                                (true, None) => "last connected device".to_string(),
+                            }
+                        );
+                    }
                 }
             }
 
             Some(Ok(msg)) = next_or_pending(&mut connect_signals) => {
                 let Some(path) = newly_connected_device(&msg) else { continue };
                 let Some(address) = device_address(&conn, &path).await else { continue };
+                // Refresh the picker: this may be a device paired just now.
+                publish_known_devices(&conn, &evt_tx).await;
                 if last_device.as_deref() == Some(address.as_str()) {
                     continue;
                 }
@@ -204,6 +252,51 @@ async fn run(
             }
         }
     }
+}
+
+/// The address a bring-up should target, or `None` to only power the adapter.
+fn auto_target(auto: &AutoConnect, last_device: &Option<String>) -> Option<String> {
+    if !auto.enabled {
+        return None;
+    }
+    auto.pinned.clone().or_else(|| last_device.clone())
+}
+
+/// Report the paired devices so the Settings UI can offer them.
+async fn publish_known_devices(
+    conn: &Connection,
+    evt_tx: &tokio::sync::mpsc::Sender<Event>,
+) {
+    let Some(objects) = managed_objects(conn).await else {
+        return;
+    };
+    let mut devices = Vec::new();
+    for (_path, interfaces) in objects {
+        for (interface, props) in &interfaces {
+            if interface.as_str() != "org.bluez.Device1" {
+                continue;
+            }
+            if !matches!(
+                props.get("Paired").map(|v| bool::try_from(v.clone())),
+                Some(Ok(true))
+            ) {
+                continue;
+            }
+            let Some(Ok(address)) = props.get("Address").map(|v| String::try_from(v.clone()))
+            else {
+                continue;
+            };
+            let label = props
+                .get("Alias")
+                .and_then(|v| String::try_from(v.clone()).ok())
+                .filter(|a| !a.is_empty())
+                .unwrap_or_else(|| address.clone());
+            devices.push(KnownDevice { address, label });
+        }
+    }
+    devices.sort_by_key(|d| d.label.to_lowercase());
+    log::debug!("Bluetooth auto-connect picker: {} paired device(s)", devices.len());
+    let _ = evt_tx.send(Event::KnownDevices(devices)).await;
 }
 
 /// Bring Bluetooth back up: power the controller, then reconnect the remembered

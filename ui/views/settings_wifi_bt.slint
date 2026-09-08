@@ -1,8 +1,10 @@
 import { Theme } from "../theme.slint";
 import { Dropdown } from "../components/dropdown.slint";
+import { Toggle } from "../components/toggle.slint";
 
 // WiFi / Bluetooth category settings tab. Hosts the Wi-Fi hotspot backend
-// selector (NetworkManager vs hostapd) and the hostapd channel.
+// selector (NetworkManager vs hostapd) and the hostapd channel, plus the
+// Bluetooth auto-reconnect settings.
 export component SettingsWifiBtTab inherits Rectangle {
     background: transparent;
 
@@ -15,13 +17,24 @@ export component SettingsWifiBtTab inherits Rectangle {
     in-out property <int> hotspot-channel: 36;
     callback hotspot-channel-changed(int);
 
+    // Whether Bluetooth is reconnected on startup and after resume.
+    in-out property <bool> bt-auto-reconnect: true;
+    callback bt-auto-reconnect-changed(bool);
+
+    // Auto-connect target. Index 0 is always "LAST CONNECTED"; the rest are
+    // paired devices supplied by the worker. The address behind each index is
+    // resolved in Rust, so the UI only ever deals in indices.
+    in property <[string]> bt-device-options: ["LAST CONNECTED"];
+    in-out property <int> bt-device-index: 0;
+    callback bt-device-selected(int);
+
     VerticalLayout {
         alignment: start;
         padding: 24px;
         spacing: 20px;
 
         Text {
-            text: "WIFI / BT";
+            text: "WIFI";
             color: Theme.text;
             font-size: 20px;
             font-weight: 800;
@@ -115,6 +128,81 @@ export component SettingsWifiBtTab inherits Rectangle {
 
             Text {
                 text: "Hostapd drives the radio directly and can host 5 GHz / DFS access points on capable hardware, but requires the hostapd and dnsmasq tools and elevated privileges. NetworkManager is the safer default.";
+                color: Theme.text-mute;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+
+        // ── Bluetooth ─────────────────────────────────────────────────
+        Text {
+            text: "BLUETOOTH";
+            color: Theme.text;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 3px;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.red-dim;
+        }
+
+        VerticalLayout {
+            spacing: 14px;
+
+            Text {
+                text: "AUTO CONNECT";
+                color: Theme.text-dim;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 2px;
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "RECONNECT AUTOMATICALLY";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Toggle {
+                    checked <=> root.bt-auto-reconnect;
+                    toggled(on) => {
+                        root.bt-auto-reconnect-changed(on);
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "DEVICE";
+                    color: root.bt-auto-reconnect ? Theme.text : Theme.text-mute;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                Dropdown {
+                    width: 220px;
+                    options: root.bt-device-options;
+                    current-index <=> root.bt-device-index;
+                    selected(i) => {
+                        root.bt-device-selected(i);
+                    }
+                }
+            }
+
+            Text {
+                text: "Reconnects the selected device on startup and after waking from sleep, then resumes playback. \"LAST CONNECTED\" follows whichever device connected most recently; pick a specific device to always use that one.";
                 color: Theme.text-mute;
                 font-size: 11px;
                 wrap: word-wrap;

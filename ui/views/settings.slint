@@ -4,6 +4,7 @@ import { GlowText } from "../components/glow_text.slint";
 import { SettingsAndroidAutoTab } from "settings_android_auto.slint";
 import { SettingsUiTab } from "settings_ui.slint";
 import { SettingsWifiBtTab } from "settings_wifi_bt.slint";
+import { SettingsPowerTab } from "settings_power.slint";
 import { SettingsDspTab, EqBand } from "settings_dsp.slint";
 
 export { EqBand }
@@ -16,7 +17,7 @@ export component SettingsView inherits Rectangle {
     in property <bool> gfx-bg-enabled: false;
     background: root.gfx-bg-enabled ? Theme.bg.with-alpha(0.45) : Theme.bg;
 
-    // 0 = Android Auto  |  1 = UI  |  2 = WiFi/BT  |  3 = DSP/EQ
+    // 0 = Android Auto  |  1 = UI  |  2 = WiFi/BT  |  3 = DSP/EQ  |  4 = Power
     in-out property <int> active-tab: 0;
 
     // Android Auto DPI (exposed for Rust binding)
@@ -82,6 +83,37 @@ export component SettingsView inherits Rectangle {
     // 5 GHz channel for the hostapd hotspot backend (0 = automatic).
     in-out property <int> hotspot-channel: 36;
     callback hotspot-channel-changed(int);
+
+    in-out property <bool> bt-auto-reconnect: true;
+    callback bt-auto-reconnect-changed(bool);
+
+    in property <[string]> bt-device-options: ["LAST CONNECTED"];
+    in-out property <int> bt-device-index: 0;
+    callback bt-device-selected(int);
+
+    // Power tab.
+    in property <bool> power-available: false;
+    in property <bool> power-on-battery: false;
+    in property <int> power-percent: 0;
+    in property <string> power-state: "unknown";
+    in-out property <bool> suspend-on-battery: false;
+    callback suspend-on-battery-changed(bool);
+    in-out property <float> suspend-delay: 0.0;
+    in property <string> suspend-delay-label: "40s";
+    callback suspend-delay-changed(float);
+    callback suspend-delay-committed(float);
+    in-out property <float> aa-resume-delay: 0.0;
+    in property <string> aa-resume-delay-label: "5s";
+    callback aa-resume-delay-changed(float);
+    callback aa-resume-delay-committed(float);
+    in-out property <float> bt-resume-delay: 0.0;
+    in property <string> bt-resume-delay-label: "3s";
+    callback bt-resume-delay-changed(float);
+    callback bt-resume-delay-committed(float);
+    in-out property <int> startup-view: 0;
+    callback startup-view-changed(int);
+    in-out property <int> resume-view: -1;
+    callback resume-view-changed(int);
 
     // JamesDSP D-Bus connection status and effect toggles.
     in property <bool> dsp-available: true;
@@ -217,6 +249,31 @@ export component SettingsView inherits Rectangle {
                             }
                         }
                     }
+
+                    // Tab: Power
+                    Rectangle {
+                        width: tab-power-text.preferred-width + 32px;
+                        height: 36px;
+                        background: root.active-tab == 4 ? Theme.red-dim : transparent;
+                        border-width: 1px;
+                        border-color: root.active-tab == 4 ? Theme.red : Theme.red-dim;
+
+                        tab-power-text := Text {
+                            text: "POWER";
+                            color: root.active-tab == 4 ? Theme.text : Theme.text-mute;
+                            font-size: 12px;
+                            font-weight: 700;
+                            letter-spacing: 2px;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                root.active-tab = 4;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -327,6 +384,15 @@ export component SettingsView inherits Rectangle {
                     hotspot-channel-changed(v) => {
                         root.hotspot-channel-changed(v);
                     }
+                    bt-auto-reconnect <=> root.bt-auto-reconnect;
+                    bt-auto-reconnect-changed(v) => {
+                        root.bt-auto-reconnect-changed(v);
+                    }
+                    bt-device-options: root.bt-device-options;
+                    bt-device-index <=> root.bt-device-index;
+                    bt-device-selected(v) => {
+                        root.bt-device-selected(v);
+                    }
                     }
                 }
 
@@ -366,6 +432,57 @@ export component SettingsView inherits Rectangle {
                     }
                     eq-band-committed(idx, v) => {
                         root.dsp-eq-band-committed(idx, v);
+                    }
+                    }
+                }
+
+                if root.active-tab == 4 : Flickable {
+                    width: 100%;
+                    height: 100%;
+                    viewport-width: self.width;
+                    viewport-height: max(self.height, power-tab.preferred-height);
+
+                    power-tab := SettingsPowerTab {
+                    width: 100%;
+                    power-available: root.power-available;
+                    power-on-battery: root.power-on-battery;
+                    power-percent: root.power-percent;
+                    power-state: root.power-state;
+                    suspend-on-battery <=> root.suspend-on-battery;
+                    suspend-on-battery-changed(v) => {
+                        root.suspend-on-battery-changed(v);
+                    }
+                    suspend-delay <=> root.suspend-delay;
+                    suspend-delay-label: root.suspend-delay-label;
+                    suspend-delay-changed(v) => {
+                        root.suspend-delay-changed(v);
+                    }
+                    suspend-delay-committed(v) => {
+                        root.suspend-delay-committed(v);
+                    }
+                    aa-resume-delay <=> root.aa-resume-delay;
+                    aa-resume-delay-label: root.aa-resume-delay-label;
+                    aa-resume-delay-changed(v) => {
+                        root.aa-resume-delay-changed(v);
+                    }
+                    aa-resume-delay-committed(v) => {
+                        root.aa-resume-delay-committed(v);
+                    }
+                    bt-resume-delay <=> root.bt-resume-delay;
+                    bt-resume-delay-label: root.bt-resume-delay-label;
+                    bt-resume-delay-changed(v) => {
+                        root.bt-resume-delay-changed(v);
+                    }
+                    bt-resume-delay-committed(v) => {
+                        root.bt-resume-delay-committed(v);
+                    }
+                    startup-view <=> root.startup-view;
+                    startup-view-changed(v) => {
+                        root.startup-view-changed(v);
+                    }
+                    resume-view <=> root.resume-view;
+                    resume-view-changed(v) => {
+                        root.resume-view-changed(v);
                     }
                     }
                 }

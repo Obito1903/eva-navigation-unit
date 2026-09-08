@@ -3,7 +3,7 @@
 
 use crate::container::{AndroidAutoContainer, VideoSettings};
 #[cfg(feature = "power")]
-use crate::btmedia::{BtMediaContainer, Event as BtEvent};
+use crate::btmedia::{AutoConnect, BtMediaContainer, Command as BtCommand, Event as BtEvent};
 #[cfg(feature = "jamesdsp")]
 use crate::jamesdsp::{Command as DspCommand, Effect as DspEffect, Event as DspEvent, JamesDspContainer};
 use crate::messages::{MessageFromAsync, MessageToAsync, VideoCommand};
@@ -332,15 +332,65 @@ pub(crate) fn wire(
     let mut bt_container = BtMediaContainer::new(
         cfg.borrow().last_bt_device.clone(),
         std::time::Duration::from_millis(cfg.borrow().bt_resume_delay_ms),
+        AutoConnect {
+            enabled: cfg.borrow().bt_auto_reconnect,
+            pinned: pinned_bt_device(&cfg.borrow().bt_auto_connect_device),
+        },
     );
+
+    // Addresses behind the picker, index-aligned with `bt-device-options`.
+    // Index 0 is the "last connected" sentinel, so it has no address.
+    #[cfg(feature = "power")]
+    let bt_addresses: Rc<RefCell<Vec<Option<String>>>> = Rc::new(RefCell::new(vec![None]));
+
+    #[cfg(feature = "power")]
+    {
+        window.set_bt_auto_reconnect(cfg.borrow().bt_auto_reconnect);
+        let send = bt_container.send.clone();
+        let cfg = cfg.clone();
+        window.on_bt_auto_reconnect_changed(move |enabled| {
+            let mut cfg = cfg.borrow_mut();
+            cfg.bt_auto_reconnect = enabled;
+            cfg.save();
+            let _ = send.try_send(BtCommand::SetPolicy(AutoConnect {
+                enabled,
+                pinned: pinned_bt_device(&cfg.bt_auto_connect_device),
+            }));
+        });
+    }
+
+    #[cfg(feature = "power")]
+    {
+        let send = bt_container.send.clone();
+        let cfg = cfg.clone();
+        let addresses = bt_addresses.clone();
+        window.on_bt_device_selected(move |index| {
+            let pinned = addresses
+                .borrow()
+                .get(index as usize)
+                .cloned()
+                .flatten();
+            let mut cfg = cfg.borrow_mut();
+            cfg.bt_auto_connect_device = pinned
+                .clone()
+                .unwrap_or_else(|| crate::config::BT_DEVICE_LAST.to_string());
+            cfg.save();
+            let _ = send.try_send(BtCommand::SetPolicy(AutoConnect {
+                enabled: cfg.bt_auto_reconnect,
+                pinned,
+            }));
+        });
+    }
     #[cfg(feature = "power")]
     let (aa_tx, mut aa_rx) = tokio::sync::mpsc::channel::<crate::power::AaCommand>(4);
     #[cfg(feature = "power")]
     let aa_resume_delay = std::time::Duration::from_millis(cfg.borrow().aa_resume_delay_ms);
     #[cfg(feature = "power")]
+    let resume_view = cfg.borrow().resume_view;
+    #[cfg(feature = "power")]
     let mut restart_at: Option<std::time::Instant> = None;
     #[cfg(feature = "power")]
-    let power_monitor = crate::power::PowerMonitor::new(
+    let mut power_monitor = crate::power::PowerMonitor::new(
         bt_container.send.clone(),
         aa_tx,
         crate::power::BatterySuspend {
@@ -419,6 +469,112 @@ pub(crate) fn wire(
                 gain,
                 commit: true,
             });
+        });
+    }
+
+    // ── Power settings tab ────────────────────────────────────────────────
+    // The delays only take effect on the next launch: both workers are handed
+    // their durations when they are built.
+    #[cfg(feature = "power")]
+    {
+        let c = cfg.borrow();
+        window.set_suspend_on_battery(c.suspend_on_battery);
+        window.set_suspend_delay(ms_to_fraction(
+            c.suspend_on_battery_delay_ms,
+            SUSPEND_DELAY_RANGE,
+        ));
+        window.set_suspend_delay_label(delay_label(c.suspend_on_battery_delay_ms));
+        window.set_aa_resume_delay(ms_to_fraction(c.aa_resume_delay_ms, RESUME_DELAY_RANGE));
+        window.set_aa_resume_delay_label(delay_label(c.aa_resume_delay_ms));
+        window.set_bt_resume_delay(ms_to_fraction(c.bt_resume_delay_ms, RESUME_DELAY_RANGE));
+        window.set_bt_resume_delay_label(delay_label(c.bt_resume_delay_ms));
+    }
+
+    // View preferences work without the `power` feature; only the resume half
+    // depends on it.
+    {
+        let c = cfg.borrow();
+        window.set_startup_view(c.startup_view);
+        window.set_resume_view(c.resume_view);
+        window.set_active_view(c.startup_view);
+    }
+
+    {
+        let cfg = cfg.clone();
+        window.on_startup_view_changed(move |view| {
+            let mut cfg = cfg.borrow_mut();
+            cfg.startup_view = view;
+            cfg.save();
+        });
+    }
+
+    {
+        let cfg = cfg.clone();
+        window.on_resume_view_changed(move |view| {
+            let mut cfg = cfg.borrow_mut();
+            cfg.resume_view = view;
+            cfg.save();
+        });
+    }
+
+    #[cfg(feature = "power")]
+    {
+        let cfg = cfg.clone();
+        window.on_suspend_on_battery_changed(move |enabled| {
+            let mut cfg = cfg.borrow_mut();
+            cfg.suspend_on_battery = enabled;
+            cfg.save();
+        });
+    }
+
+    #[cfg(feature = "power")]
+    {
+        let window_weak = window.as_weak();
+        window.on_suspend_delay_changed(move |fraction| {
+            if let Some(win) = window_weak.upgrade() {
+                let ms = fraction_to_ms(fraction, SUSPEND_DELAY_RANGE);
+                win.set_suspend_delay_label(delay_label(ms));
+            }
+        });
+        let cfg = cfg.clone();
+        window.on_suspend_delay_committed(move |fraction| {
+            let mut cfg = cfg.borrow_mut();
+            cfg.suspend_on_battery_delay_ms = fraction_to_ms(fraction, SUSPEND_DELAY_RANGE);
+            cfg.save();
+        });
+    }
+
+    #[cfg(feature = "power")]
+    {
+        let window_weak = window.as_weak();
+        window.on_aa_resume_delay_changed(move |fraction| {
+            if let Some(win) = window_weak.upgrade() {
+                let ms = fraction_to_ms(fraction, RESUME_DELAY_RANGE);
+                win.set_aa_resume_delay_label(delay_label(ms));
+            }
+        });
+        let cfg = cfg.clone();
+        window.on_aa_resume_delay_committed(move |fraction| {
+            let mut cfg = cfg.borrow_mut();
+            cfg.aa_resume_delay_ms = fraction_to_ms(fraction, RESUME_DELAY_RANGE);
+            cfg.save();
+        });
+    }
+
+    #[cfg(feature = "power")]
+    {
+        let window_weak = window.as_weak();
+        window.on_bt_resume_delay_changed(move |fraction| {
+            if let Some(win) = window_weak.upgrade() {
+                let ms = fraction_to_ms(fraction, RESUME_DELAY_RANGE);
+                win.set_bt_resume_delay_label(delay_label(ms));
+            }
+        });
+        let cfg = cfg.clone();
+        window.on_bt_resume_delay_committed(move |fraction| {
+            let mut cfg = cfg.borrow_mut();
+            cfg.bt_resume_delay_ms = fraction_to_ms(fraction, RESUME_DELAY_RANGE);
+            cfg.save();
         });
     }
 
@@ -529,6 +685,9 @@ pub(crate) fn wire(
                     }
                     crate::power::AaCommand::Resume => {
                         restart_at = Some(std::time::Instant::now() + aa_resume_delay);
+                        if resume_view >= 0 {
+                            win.set_active_view(resume_view);
+                        }
                     }
                 }
             }
@@ -643,17 +802,94 @@ pub(crate) fn wire(
     #[cfg(feature = "power")]
     {
         let cfg = cfg.clone();
+        let addresses = bt_addresses.clone();
+        let bt_window_weak = window.as_weak();
         let bt_timer = slint::Timer::default();
         bt_timer.start(slint::TimerMode::Repeated, POLL_INTERVAL, move || {
-            // Captured so both workers live as long as the event loop.
-            let _power = &power_monitor;
-            while let Ok(BtEvent::LastDeviceChanged(address)) = bt_container.recv.try_recv() {
-                let mut cfg = cfg.borrow_mut();
-                cfg.last_bt_device = Some(address);
-                cfg.save();
+            let Some(win) = bt_window_weak.upgrade() else {
+                return;
+            };
+            while let Ok(supply) = power_monitor.recv.try_recv() {
+                win.set_power_available(supply.available);
+                win.set_power_on_battery(supply.on_battery);
+                win.set_power_percent(supply.percent);
+                win.set_power_state(supply.state.into());
+            }
+            while let Ok(event) = bt_container.recv.try_recv() {
+                match event {
+                    BtEvent::LastDeviceChanged(address) => {
+                        let mut cfg = cfg.borrow_mut();
+                        cfg.last_bt_device = Some(address);
+                        cfg.save();
+                    }
+                    BtEvent::KnownDevices(devices) => {
+                        let pinned = cfg.borrow().bt_auto_connect_device.clone();
+                        let mut labels = vec![slint::SharedString::from("LAST CONNECTED")];
+                        let mut addrs: Vec<Option<String>> = vec![None];
+                        let mut selected = 0;
+                        for device in devices {
+                            if device.address.eq_ignore_ascii_case(&pinned) {
+                                selected = labels.len() as i32;
+                            }
+                            labels.push(
+                                format!("{} ({})", device.label, device.address).into(),
+                            );
+                            addrs.push(Some(device.address));
+                        }
+                        *addresses.borrow_mut() = addrs;
+                        win.set_bt_device_options(ModelRc::new(VecModel::from(labels)));
+                        win.set_bt_device_index(selected);
+                    }
+                }
             }
         });
         std::mem::forget(bt_timer);
+    }
+}
+
+/// `None` when the configured value is the "last connected" sentinel (or empty),
+/// otherwise the pinned address.
+#[cfg(feature = "power")]
+fn pinned_bt_device(configured: &str) -> Option<String> {
+    if configured.is_empty() || configured.eq_ignore_ascii_case(crate::config::BT_DEVICE_LAST) {
+        None
+    } else {
+        Some(configured.to_string())
+    }
+}
+
+/// Slider range for the on-battery suspend delay, in ms.
+#[cfg(feature = "power")]
+const SUSPEND_DELAY_RANGE: (u64, u64) = (5_000, 300_000);
+/// Slider range for both post-resume settling delays, in ms.
+#[cfg(feature = "power")]
+const RESUME_DELAY_RANGE: (u64, u64) = (0, 30_000);
+
+/// Map a millisecond value onto a 0.0-1.0 slider position.
+#[cfg(feature = "power")]
+fn ms_to_fraction(ms: u64, range: (u64, u64)) -> f32 {
+    let (min, max) = range;
+    let span = (max - min) as f32;
+    ((ms.clamp(min, max) - min) as f32 / span).clamp(0.0, 1.0)
+}
+
+/// Map a 0.0-1.0 slider position back onto milliseconds.
+#[cfg(feature = "power")]
+fn fraction_to_ms(fraction: f32, range: (u64, u64)) -> u64 {
+    let (min, max) = range;
+    min + (fraction.clamp(0.0, 1.0) * (max - min) as f32).round() as u64
+}
+
+/// Human-readable slider label, e.g. `40s` or `2m30s`.
+#[cfg(feature = "power")]
+fn delay_label(ms: u64) -> slint::SharedString {
+    let secs = ms / 1000;
+    if secs < 60 {
+        format!("{secs}s").into()
+    } else if secs.is_multiple_of(60) {
+        format!("{}m", secs / 60).into()
+    } else {
+        format!("{}m{}s", secs / 60, secs % 60).into()
     }
 }
 

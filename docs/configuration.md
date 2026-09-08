@@ -65,6 +65,8 @@ CLI flags always take precedence over the config file.
 | `aa_resume_delay_ms` | `--aa-resume-delay-ms` | `EVA_AA_RESUME_DELAY_MS` | `5000` | How long to wait after resuming from suspend before restarting the Android Auto session, letting USB and the Wi-Fi hotspot come back first. Clamped to 60000. Requires the `power` feature. |
 | `suspend_on_battery` | `--suspend-on-battery` | `EVA_SUSPEND_ON_BATTERY` | `false` | Suspend the machine once it has been on battery for `suspend_on_battery_delay_ms`, i.e. when the car is switched off. Off by default: on a development machine this would suspend the desktop shortly after unplugging the charger. Requires the `power` feature. |
 | `suspend_on_battery_delay_ms` | `--suspend-on-battery-delay-ms` | `EVA_SUSPEND_ON_BATTERY_DELAY_MS` | `40000` | How long mains power must stay absent before suspending. Reconnecting power cancels a pending suspend. Clamped to 5000..=3600000. |
+| `startup_view` | `--startup-view` | `EVA_STARTUP_VIEW` | `0` | View shown at startup: `0` = Android Auto, `1` = System, `2` = Controls, `3` = Visualizer. |
+| `resume_view` | `--resume-view` | `EVA_RESUME_VIEW` | `-1` | View restored after waking from sleep, using the same indices as `startup_view`. `-1` leaves whatever was showing alone. Requires the `power` feature. |
 | `last_bt_device` | — | — | — | Address of the last Bluetooth device seen connecting, reconnected to on startup and on resume. Written by the app; not meant to be hand-edited. |
 
 The version badge on the same overlay always reflects the actual build
@@ -136,6 +138,8 @@ bt_resume_delay_ms = 3000
 aa_resume_delay_ms = 5000
 suspend_on_battery = false
 suspend_on_battery_delay_ms = 40000
+startup_view = 0
+resume_view = -1
 
 [log]
 level  = "info"

@@ -79,6 +79,9 @@ pub(crate) const DEFAULT_AA_WAITING_TEXT: &str = "WAITING FOR ENTRY PLUG";
 /// Default wait after resuming from suspend before reconnecting Bluetooth.
 /// The adapter is usually still coming back for the first couple of seconds.
 pub(crate) const DEFAULT_BT_RESUME_DELAY_MS: u64 = 3000;
+/// Sentinel meaning "whichever device connected most recently" rather than a
+/// pinned address, for `bt_auto_connect_device`.
+pub(crate) const BT_DEVICE_LAST: &str = "last";
 /// Upper bound for the post-resume Bluetooth delay, so a typo cannot silently
 /// disable reconnection for minutes.
 pub(crate) const MAX_BT_RESUME_DELAY_MS: u64 = 60_000;
@@ -94,6 +97,10 @@ pub(crate) const DEFAULT_SUSPEND_ON_BATTERY_DELAY_MS: u64 = 40_000;
 pub(crate) const MIN_SUSPEND_ON_BATTERY_DELAY_MS: u64 = 5_000;
 /// Upper bound for the on-battery suspend delay (one hour).
 pub(crate) const MAX_SUSPEND_ON_BATTERY_DELAY_MS: u64 = 3_600_000;
+/// View shown at startup: 0 = AUTO | 1 = SYS | 2 = CTRL | 3 = VIZ.
+pub(crate) const DEFAULT_STARTUP_VIEW: i32 = 0;
+/// View restored after resuming. `-1` leaves whatever was showing alone.
+pub(crate) const RESUME_VIEW_KEEP: i32 = -1;
 
 // ── Spectrum visualizer defaults ─────────────────────────────────────────────
 
@@ -236,6 +243,14 @@ struct Cli {
     #[arg(long, env = "EVA_BT_RESUME_DELAY_MS")]
     bt_resume_delay_ms: Option<u64>,
 
+    /// Reconnect the Bluetooth device automatically on startup and resume.
+    #[arg(long, env = "EVA_BT_AUTO_RECONNECT")]
+    bt_auto_reconnect: Option<bool>,
+
+    /// Address to auto-connect to, or "last" for the most recent device.
+    #[arg(long, env = "EVA_BT_AUTO_CONNECT_DEVICE")]
+    bt_auto_connect_device: Option<String>,
+
     /// Delay in ms after resuming from suspend before restarting Android Auto.
     #[arg(long, env = "EVA_AA_RESUME_DELAY_MS")]
     aa_resume_delay_ms: Option<u64>,
@@ -247,6 +262,14 @@ struct Cli {
     /// Delay in ms on battery before suspending.
     #[arg(long, env = "EVA_SUSPEND_ON_BATTERY_DELAY_MS")]
     suspend_on_battery_delay_ms: Option<u64>,
+
+    /// View shown at startup (0 = AUTO, 1 = SYS, 2 = CTRL, 3 = VIZ).
+    #[arg(long, env = "EVA_STARTUP_VIEW")]
+    startup_view: Option<i32>,
+
+    /// View restored after resume, or -1 to keep the current one.
+    #[arg(long, env = "EVA_RESUME_VIEW")]
+    resume_view: Option<i32>,
 
     /// Number of visualizer frequency bands (4..=64).
     #[arg(long, env = "EVA_VIZ_BANDS")]
@@ -353,9 +376,13 @@ struct FileConfig {
     aa_waiting_text: Option<String>,
     last_bt_device: Option<String>,
     bt_resume_delay_ms: Option<u64>,
+    bt_auto_reconnect: Option<bool>,
+    bt_auto_connect_device: Option<String>,
     aa_resume_delay_ms: Option<u64>,
     suspend_on_battery: Option<bool>,
     suspend_on_battery_delay_ms: Option<u64>,
+    startup_view: Option<i32>,
+    resume_view: Option<i32>,
     log: Option<LogFileConfig>,
     viz: Option<VizFileConfig>,
 }
@@ -530,6 +557,11 @@ pub(crate) struct Config {
     pub(crate) last_bt_device: Option<String>,
     /// Delay after resuming from suspend before reconnecting Bluetooth, in ms.
     pub(crate) bt_resume_delay_ms: u64,
+    /// Whether to reconnect Bluetooth automatically on startup and resume.
+    pub(crate) bt_auto_reconnect: bool,
+    /// Address to auto-connect to, or [`BT_DEVICE_LAST`] to follow whichever
+    /// device connected most recently.
+    pub(crate) bt_auto_connect_device: String,
     /// Wait after resuming from suspend before restarting the Android Auto
     /// session.
     pub(crate) aa_resume_delay_ms: u64,
@@ -539,6 +571,10 @@ pub(crate) struct Config {
     pub(crate) suspend_on_battery: bool,
     /// How long to stay on battery before suspending.
     pub(crate) suspend_on_battery_delay_ms: u64,
+    /// View shown at startup (0 = AUTO | 1 = SYS | 2 = CTRL | 3 = VIZ).
+    pub(crate) startup_view: i32,
+    /// View restored after resume, or [`RESUME_VIEW_KEEP`] to leave it alone.
+    pub(crate) resume_view: i32,
     /// Logging / debug-pipeline configuration.
     pub(crate) log: LogConfig,
     /// Spectrum visualizer tuning parameters.
@@ -630,6 +666,16 @@ impl Config {
             .or(file.bt_resume_delay_ms)
             .unwrap_or(DEFAULT_BT_RESUME_DELAY_MS);
 
+        let bt_auto_reconnect = cli
+            .bt_auto_reconnect
+            .or(file.bt_auto_reconnect)
+            .unwrap_or(true);
+
+        let bt_auto_connect_device = cli
+            .bt_auto_connect_device
+            .or(file.bt_auto_connect_device)
+            .unwrap_or_else(|| BT_DEVICE_LAST.to_string());
+
         let aa_resume_delay_ms = cli
             .aa_resume_delay_ms
             .or(file.aa_resume_delay_ms)
@@ -644,6 +690,16 @@ impl Config {
             .suspend_on_battery_delay_ms
             .or(file.suspend_on_battery_delay_ms)
             .unwrap_or(DEFAULT_SUSPEND_ON_BATTERY_DELAY_MS);
+
+        let startup_view = cli
+            .startup_view
+            .or(file.startup_view)
+            .unwrap_or(DEFAULT_STARTUP_VIEW);
+
+        let resume_view = cli
+            .resume_view
+            .or(file.resume_view)
+            .unwrap_or(RESUME_VIEW_KEEP);
 
         let file_log = file.log.unwrap_or_default();
         let log = LogConfig {
@@ -704,9 +760,13 @@ impl Config {
             aa_waiting_text,
             last_bt_device: file.last_bt_device,
             bt_resume_delay_ms,
+            bt_auto_reconnect,
+            bt_auto_connect_device,
             aa_resume_delay_ms,
             suspend_on_battery,
             suspend_on_battery_delay_ms,
+            startup_view,
+            resume_view,
             log,
             viz,
             path,
@@ -744,9 +804,13 @@ impl Config {
             aa_waiting_text,
             last_bt_device,
             bt_resume_delay_ms,
+            bt_auto_reconnect,
+            bt_auto_connect_device,
             aa_resume_delay_ms,
             suspend_on_battery,
             suspend_on_battery_delay_ms,
+            startup_view,
+            resume_view,
             log,
             viz,
             path,
@@ -793,12 +857,16 @@ impl Config {
             aa_waiting_text,
             last_bt_device,
             bt_resume_delay_ms: bt_resume_delay_ms.min(MAX_BT_RESUME_DELAY_MS),
+            bt_auto_reconnect,
+            bt_auto_connect_device,
             aa_resume_delay_ms: aa_resume_delay_ms.min(MAX_AA_RESUME_DELAY_MS),
             suspend_on_battery,
             suspend_on_battery_delay_ms: suspend_on_battery_delay_ms.clamp(
                 MIN_SUSPEND_ON_BATTERY_DELAY_MS,
                 MAX_SUSPEND_ON_BATTERY_DELAY_MS,
             ),
+            startup_view: startup_view.clamp(0, 3),
+            resume_view: resume_view.clamp(RESUME_VIEW_KEEP, 3),
             log,
             viz,
             path,
@@ -833,9 +901,13 @@ impl Config {
             aa_waiting_text: Some(self.aa_waiting_text.clone()),
             last_bt_device: self.last_bt_device.clone(),
             bt_resume_delay_ms: Some(self.bt_resume_delay_ms),
+            bt_auto_reconnect: Some(self.bt_auto_reconnect),
+            bt_auto_connect_device: Some(self.bt_auto_connect_device.clone()),
             aa_resume_delay_ms: Some(self.aa_resume_delay_ms),
             suspend_on_battery: Some(self.suspend_on_battery),
             suspend_on_battery_delay_ms: Some(self.suspend_on_battery_delay_ms),
+            startup_view: Some(self.startup_view),
+            resume_view: Some(self.resume_view),
             log: Some(LogFileConfig {
                 level: Some(self.log.level.clone()),
                 ui: self.log.ui.clone(),

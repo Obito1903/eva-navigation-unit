@@ -42,6 +42,37 @@ export component AppWindow inherits Window {
     in-out property <int> hotspot-channel: 36;
     callback hotspot-channel-changed(int);
 
+    in-out property <bool> bt-auto-reconnect: true;
+    callback bt-auto-reconnect-changed(bool);
+
+    in property <[string]> bt-device-options: ["LAST CONNECTED"];
+    in-out property <int> bt-device-index: 0;
+    callback bt-device-selected(int);
+
+    // Power settings tab.
+    in property <bool> power-available: false;
+    in property <bool> power-on-battery: false;
+    in property <int> power-percent: 0;
+    in property <string> power-state: "unknown";
+    in-out property <bool> suspend-on-battery: false;
+    callback suspend-on-battery-changed(bool);
+    in-out property <float> suspend-delay: 0.0;
+    in property <string> suspend-delay-label: "40s";
+    callback suspend-delay-changed(float);
+    callback suspend-delay-committed(float);
+    in-out property <float> aa-resume-delay: 0.0;
+    in property <string> aa-resume-delay-label: "5s";
+    callback aa-resume-delay-changed(float);
+    callback aa-resume-delay-committed(float);
+    in-out property <float> bt-resume-delay: 0.0;
+    in property <string> bt-resume-delay-label: "3s";
+    callback bt-resume-delay-changed(float);
+    callback bt-resume-delay-committed(float);
+    in-out property <int> startup-view: 0;
+    callback startup-view-changed(int);
+    in-out property <int> resume-view: -1;
+    callback resume-view-changed(int);
+
     // Whether JamesDSP support was compiled into this build at all (set once
     // at startup from Rust via `cfg!(feature = "jamesdsp")`), independent of
     // `dsp-connected` (the live, runtime D-Bus reachability).
@@ -300,6 +331,55 @@ export component AppWindow inherits Window {
                     hotspot-channel <=> root.hotspot-channel;
                     hotspot-channel-changed(v) => {
                         root.hotspot-channel-changed(v);
+                    }
+                    bt-auto-reconnect <=> root.bt-auto-reconnect;
+                    bt-auto-reconnect-changed(v) => {
+                        root.bt-auto-reconnect-changed(v);
+                    }
+                    bt-device-options: root.bt-device-options;
+                    bt-device-index <=> root.bt-device-index;
+                    bt-device-selected(v) => {
+                        root.bt-device-selected(v);
+                    }
+                    power-available: root.power-available;
+                    power-on-battery: root.power-on-battery;
+                    power-percent: root.power-percent;
+                    power-state: root.power-state;
+                    suspend-on-battery <=> root.suspend-on-battery;
+                    suspend-on-battery-changed(v) => {
+                        root.suspend-on-battery-changed(v);
+                    }
+                    suspend-delay <=> root.suspend-delay;
+                    suspend-delay-label: root.suspend-delay-label;
+                    suspend-delay-changed(v) => {
+                        root.suspend-delay-changed(v);
+                    }
+                    suspend-delay-committed(v) => {
+                        root.suspend-delay-committed(v);
+                    }
+                    aa-resume-delay <=> root.aa-resume-delay;
+                    aa-resume-delay-label: root.aa-resume-delay-label;
+                    aa-resume-delay-changed(v) => {
+                        root.aa-resume-delay-changed(v);
+                    }
+                    aa-resume-delay-committed(v) => {
+                        root.aa-resume-delay-committed(v);
+                    }
+                    bt-resume-delay <=> root.bt-resume-delay;
+                    bt-resume-delay-label: root.bt-resume-delay-label;
+                    bt-resume-delay-changed(v) => {
+                        root.bt-resume-delay-changed(v);
+                    }
+                    bt-resume-delay-committed(v) => {
+                        root.bt-resume-delay-committed(v);
+                    }
+                    startup-view <=> root.startup-view;
+                    startup-view-changed(v) => {
+                        root.startup-view-changed(v);
+                    }
+                    resume-view <=> root.resume-view;
+                    resume-view-changed(v) => {
+                        root.resume-view-changed(v);
                     }
                     dsp-available: root.dsp-available;
                     dsp-connected: root.dsp-connected;
